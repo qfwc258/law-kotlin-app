@@ -96,10 +96,6 @@ class LawDetailActivity : AppCompatActivity() {
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     progressBar.visibility = View.GONE
-                    // 页面加载完成后，注入 JS 隐藏网站多余元素，只显示 OFD 阅读器
-                    view?.postDelayed({
-                        injectMobileOptimization(view)
-                    }, 500)
                 }
 
                 override fun shouldOverrideUrlLoading(
@@ -156,50 +152,6 @@ class LawDetailActivity : AppCompatActivity() {
             Toast.makeText(this, "无效的法规ID", Toast.LENGTH_SHORT).show()
             finish()
         }
-    }
-
-    /**
-     * 注入移动端优化 JS，隐藏网站多余元素
-     */
-    private fun injectMobileOptimization(view: WebView?) {
-        val js = """
-            (function() {
-                try {
-                    // 隐藏头部、导航、侧边栏等
-                    var style = document.createElement('style');
-                    style.textContent = '
-                        header, .header, .nav, .navbar, .sidebar, .aside, .footer, .breadcrumb, .search-bar, .filter-bar, .page-header, .el-header, .el-aside, .top-bar, .menu, .toolbar {
-                            display: none !important;
-                        }
-                        .el-main, main, article, .content, .detail-content {
-                            padding: 0 !important;
-                            margin: 0 !important;
-                            max-width: 100% !important;
-                            width: 100% !important;
-                        }
-                        .container, .wrapper, .el-container, #app > div {
-                            max-width: 100% !important;
-                            width: 100% !important;
-                            padding: 0 !important;
-                            margin: 0 !important;
-                        }
-                        body {
-                            margin: 0 !important;
-                            padding: 0 !important;
-                        }
-                        iframe {
-                            width: 100% !important;
-                            height: 100vh !important;
-                            border: none !important;
-                        }
-                    ';
-                    document.head.appendChild(style);
-                } catch(e) {
-                    console.log('inject error:', e);
-                }
-            })()
-        """.trimIndent()
-        view?.evaluateJavascript(js, null)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
