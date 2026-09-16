@@ -371,6 +371,7 @@ class LawDetailActivity : AppCompatActivity() {
                             }
                             
                             // 从 body 开始，只保留路径上的元素，隐藏其他兄弟元素
+                            // 但保留下载按键（class 包含 "download" 的元素）
                             function keepOnlyPath(parent, pathIndex) {
                                 if (pathIndex >= path.length) return;
                                 var target = path[pathIndex];
@@ -380,7 +381,26 @@ class LawDetailActivity : AppCompatActivity() {
                                     if (child === target) {
                                         keepOnlyPath(child, pathIndex + 1);
                                     } else {
-                                        child.style.display = 'none';
+                                        // 检查是否是下载按键，如果是则保留
+                                        var childClass = child.className || '';
+                                        var childId = child.id || '';
+                                        var isDownloadButton = typeof childClass === 'string' && childClass.indexOf('download') >= 0;
+                                        var hasDownloadChild = child.querySelector && child.querySelector('.download, [class*="download"]');
+                                        
+                                        if (isDownloadButton || hasDownloadChild) {
+                                            // 保留下载按键，设置为固定定位在右上角
+                                            child.style.display = 'block';
+                                            child.style.position = 'fixed';
+                                            child.style.top = '60px';
+                                            child.style.right = '16px';
+                                            child.style.zIndex = '10000';
+                                            child.style.background = '#fff';
+                                            child.style.padding = '8px 16px';
+                                            child.style.borderRadius = '20px';
+                                            child.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                        } else {
+                                            child.style.display = 'none';
+                                        }
                                     }
                                 }
                             }
@@ -419,8 +439,9 @@ class LawDetailActivity : AppCompatActivity() {
                                     if (reader.tagName === 'IFRAME') {
                                         // iframe 是跨域的 OFD 阅读器
                                         // 目标：显示宽度=手机宽度，显示高度=手机高度（拉满至底部）
-                                        // 方案：设置 iframe 原始宽度为 1000px，用 transform 缩放到手机宽度
-                                        var originalWidth = 1000; // OFD 内容原始宽度（假设）
+                                        // 方案：设置 iframe 原始宽度为 750px，用 transform 缩放到手机宽度
+                                        // OFD 内容实际宽度约 700px，设置 750px 让内容拉满手机宽度
+                                        var originalWidth = 750; // OFD 内容原始宽度
                                         var scale = window.innerWidth / originalWidth;
                                         
                                         // 找到 iframe 的直接父容器
