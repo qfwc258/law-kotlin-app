@@ -667,52 +667,83 @@ class LawDetailActivity : AppCompatActivity() {
         val jsCode = """
             (function() {
                 try {
-                    // 找到原网页的下载按钮并点击
-                    var downloadBtn = document.querySelector('.download');
+                    // 第一步：显示所有被隐藏的下载相关元素
+                    // 因为 keepOnlyPath 函数隐藏了所有非路径上的元素
+                    var allElements = document.querySelectorAll('*');
+                    for (var i = 0; i < allElements.length; i++) {
+                        var el = allElements[i];
+                        var elClass = el.className || '';
+                        var elText = (el.textContent || '').trim();
+                        // 显示包含 download 类的元素，或包含"下载"文字的按钮
+                        if ((typeof elClass === 'string' && elClass.indexOf('download') >= 0) ||
+                            (elText.indexOf('下载') >= 0 && elText.indexOf('WPS') < 0 && elText.indexOf('扫码') < 0 && el.tagName.match(/BUTTON|SPAN|A|DIV/))) {
+                            el.style.display = '';
+                            el.style.visibility = 'visible';
+                            el.style.opacity = '1';
+                        }
+                    }
+                    
+                    // 显示所有弹出框
+                    var popups = document.querySelectorAll('.el-tooltip__popper, [class*="tooltip"], [class*="popover"], [class*="dropdown"]');
+                    for (var j = 0; j < popups.length; j++) {
+                        popups[j].style.display = '';
+                        popups[j].style.visibility = 'visible';
+                        popups[j].style.opacity = '1';
+                    }
+                    
+                    // 第二步：找到原网页的下载按钮并点击
+                    var downloadBtn = document.querySelector('.download') || 
+                                      document.querySelector('[class*="download"]') ||
+                                      Array.from(document.querySelectorAll('span, button, a')).find(function(el) {
+                                          return (el.textContent || '').trim() === '下载';
+                                      });
+                    
                     if (downloadBtn) {
+                        // 确保按钮可见
+                        downloadBtn.style.display = '';
+                        downloadBtn.style.visibility = 'visible';
                         downloadBtn.click();
                         
-                        // 等待 500ms 后，点击弹出框里的"下载"按钮
+                        // 等待 800ms 后，点击弹出框里的"下载"按钮
                         setTimeout(function() {
                             try {
-                                // 找到弹出框里的下载按钮（包含"下载"文字的按钮）
-                                var popups = document.querySelectorAll('.el-tooltip__popper, [class*="tooltip"], [class*="popover"]');
-                                var clicked = false;
-                                for (var i = 0; i < popups.length; i++) {
-                                    var popup = popups[i];
-                                    if (popup.style.display !== 'none' && popup.offsetParent !== null) {
-                                        // 找到弹出框里所有按钮
-                                        var buttons = popup.querySelectorAll('button, [role="button"], span, a');
-                                        for (var j = 0; j < buttons.length; j++) {
-                                            var btn = buttons[j];
-                                            var text = (btn.textContent || '').trim();
-                                            // 点击包含"下载"但不包含"WPS"的按钮
-                                            if (text.indexOf('下载') >= 0 && text.indexOf('WPS') < 0 && text.indexOf('扫码') < 0) {
-                                                btn.click();
-                                                clicked = true;
-                                                break;
-                                            }
-                                        }
-                                        if (clicked) break;
-                                    }
+                                // 再次确保所有弹出框可见
+                                var allPopups = document.querySelectorAll('.el-tooltip__popper, [class*="tooltip"], [class*="popover"], [class*="dropdown"]');
+                                for (var k = 0; k < allPopups.length; k++) {
+                                    allPopups[k].style.display = '';
+                                    allPopups[k].style.visibility = 'visible';
+                                    allPopups[k].style.opacity = '1';
                                 }
                                 
-                                // 如果没找到弹出框里的按钮，直接找页面上所有包含"下载"的按钮
-                                if (!clicked) {
-                                    var allButtons = document.querySelectorAll('button, [role="button"], span, a');
-                                    for (var k = 0; k < allButtons.length; k++) {
-                                        var btn2 = allButtons[k];
-                                        var text2 = (btn2.textContent || '').trim();
-                                        if (text2 === '下载' || (text2.indexOf('下载') >= 0 && text2.indexOf('WPS') < 0 && text2.indexOf('扫码') < 0 && btn2.offsetParent !== null)) {
-                                            btn2.click();
+                                // 找到弹出框里的下载按钮（包含"下载"文字但不包含"WPS"和"扫码"）
+                                var clicked = false;
+                                var allButtons = document.querySelectorAll('button, [role="button"], span, a, div');
+                                for (var m = 0; m < allButtons.length; m++) {
+                                    var btn = allButtons[m];
+                                    var text = (btn.textContent || '').trim();
+                                    // 只点击直接包含"下载"文字的元素（避免点击父元素）
+                                    var hasDirectText = false;
+                                    for (var n = 0; n < btn.childNodes.length; n++) {
+                                        if (btn.childNodes[n].nodeType === 3 && btn.childNodes[n].textContent.trim().indexOf('下载') >= 0) {
+                                            hasDirectText = true;
                                             break;
                                         }
                                     }
+                                    if (hasDirectText && text.indexOf('下载') >= 0 && text.indexOf('WPS') < 0 && text.indexOf('扫码') < 0 && btn.offsetParent !== null) {
+                                        btn.click();
+                                        clicked = true;
+                                        console.log('Clicked download button:', text);
+                                        break;
+                                    }
+                                }
+                                
+                                if (!clicked) {
+                                    console.log('Download button in popup not found');
                                 }
                             } catch(e) {
                                 console.error('Click download in popup error:', e);
                             }
-                        }, 500);
+                        }, 800);
                     } else {
                         console.log('Download button not found');
                     }
