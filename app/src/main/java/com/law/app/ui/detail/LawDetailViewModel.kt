@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.law.app.LawApp
 import com.law.app.data.model.Article
 import com.law.app.data.model.Law
+import com.law.app.data.parser.LawWebParser
 import com.law.app.data.repository.LawRepository
 import com.law.app.util.DownloadState
 import com.law.app.util.LawDownloadManager
@@ -27,6 +28,7 @@ data class DetailUiState(
 
 class LawDetailViewModel(
     private val repository: LawRepository,
+    private val parser: LawWebParser,
     private val downloadManager: LawDownloadManager
 ) : ViewModel() {
 
@@ -56,7 +58,8 @@ class LawDetailViewModel(
             val favorite = repository.isFavorite(lawId)
             _uiState.value = _uiState.value.copy(isFavorite = favorite)
 
-            val result = repository.getLawDetail(lawId)
+            // TVBox 模式：通过后台 WebView + fetch 获取详情
+            val result = parser.getLawDetail(lawId)
             when (result) {
                 is Result.Success -> {
                     val law = result.data
@@ -64,8 +67,7 @@ class LawDetailViewModel(
                     _uiState.value = _uiState.value.copy(
                         law = law,
                         articles = articles,
-                        isLoading = false,
-                        isFavorite = law.isFavorite
+                        isLoading = false
                     )
                 }
                 is Result.Error -> {
@@ -118,6 +120,7 @@ class LawDetailViewModel(
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 return LawDetailViewModel(
                     LawApp.instance.repository,
+                    LawWebParser.getInstance(LawApp.instance),
                     LawApp.instance.downloadManager
                 ) as T
             }

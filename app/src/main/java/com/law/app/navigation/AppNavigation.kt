@@ -92,7 +92,11 @@ fun AppNavigation() {
             composable(BottomNavItem.Home.route) {
                 HomeScreen(
                     onLawClick = { lawId -> navController.navigate("detail/$lawId") },
-                    onSearchClick = { navController.navigate(BottomNavItem.Search.route) }
+                    onSearchClick = { navController.navigate(BottomNavItem.Search.route) },
+                    onCategoryClick = { category ->
+                        // 点击大类跳转到搜索页
+                        navController.navigate(BottomNavItem.Search.route)
+                    }
                 )
             }
             composable(BottomNavItem.Search.route) {
