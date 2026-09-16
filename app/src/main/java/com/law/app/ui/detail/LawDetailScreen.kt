@@ -2,6 +2,7 @@ package com.law.app.ui.detail
 
 import android.annotation.SuppressLint
 import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.view.ViewGroup
