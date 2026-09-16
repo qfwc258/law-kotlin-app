@@ -20,6 +20,8 @@ jobs:
   build-release:
     name: Build Signed Release APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 允许提交和推送 APK 到 release 文件夹
 
     steps:
       - name: Checkout code
@@ -101,15 +103,25 @@ jobs:
             echo "APK copied to: release/$APK_NAME"
             ls -la release/
             
+            # 显示 git 状态
+            echo "=== git status ==="
+            git status
+            
             # 提交并推送（使用 [skip ci] 避免无限循环）
             git add -f "release/$APK_NAME"
+            echo "=== git diff --cached --stat ==="
+            git diff --cached --stat
+            
             COMMIT_MSG="ci: 自动提交APK到release目录 [skip ci] | APK: $APK_NAME | 版本: $VERSION_NAME | 日期: $DATE | 构建: ${{ github.run_number }}"
             git commit -m "$COMMIT_MSG" || echo "No changes to commit"
             
             # 推送到当前分支
             CURRENT_BRANCH="${{ github.ref_name }}"
             echo "Pushing to branch: $CURRENT_BRANCH"
-            git push origin "HEAD:$CURRENT_BRANCH" || echo "Push failed or no changes"
+            git push origin "HEAD:$CURRENT_BRANCH" 2>&1 || echo "Push failed or no changes"
+            
+            echo "=== Final git log ==="
+            git log --oneline -3
           else
             echo "APK not found"
           fi
