@@ -585,6 +585,180 @@ class LawWebParser private constructor(context: Context) {
     }
 
     /**
+     * 获取 OFD 阅读器预览 URL
+     *
+     * @param ossPdfPath OSS PDF 文件路径
+     * @return Result<String> OFD 阅读器 URL
+     */
+    suspend fun getPreviewUrl(ossPdfPath: String): Result<String> = withContext(Dispatchers.Main) {
+        if (!ensureInitialized()) {
+            return@withContext Result.Error("网络初始化失败，请检查网络连接")
+        }
+
+        val script = """
+            (function() {
+                window.__previewResult = null;
+                window.__previewError = null;
+                fetch('/law-search/amazonFile/previewLink?filePath=$ossPdfPath&fileType=pdf', {
+                    method: 'GET',
+                    headers: {'Accept': 'application/json'}
+                })
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                })
+                .then(function(data) {
+                    window.__previewResult = JSON.stringify(data);
+                })
+                .catch(function(error) {
+                    window.__previewError = error.message || 'Unknown error';
+                });
+                return 'started';
+            })()
+        """.trimIndent()
+
+        webView.evaluateJavascript(script, null)
+
+        val result = pollForPreviewResult(timeoutMs = 15000)
+        if (result != null) {
+            return@withContext parsePreviewResult(result)
+        }
+
+        val error = getJavascriptValue("window.__previewError")
+        if (error != null && error != "null") {
+            return@withContext Result.Error("获取预览链接失败: $error")
+        }
+
+        Result.Error("获取预览链接超时，请稍后重试")
+    }
+
+    /**
+     * 轮询等待预览结果
+     */
+    private suspend fun pollForPreviewResult(timeoutMs: Long): String? {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMs) {
+            val value = getJavascriptValue("window.__previewResult")
+            if (value != null && value != "null" && value.isNotEmpty()) {
+                return value
+            }
+            kotlinx.coroutines.delay(200)
+        }
+        return null
+    }
+
+    /**
+     * 解析预览结果
+     */
+    private fun parsePreviewResult(jsonString: String): Result<String> {
+        return try {
+            val cleanedJson = jsonString.removeSurrounding("\"")
+                .replace("\\\"", "\"")
+                .replace("\\n", "\n")
+                .replace("\\\\", "\\")
+            val json = org.json.JSONObject(cleanedJson)
+            val code = json.optInt("code", -1)
+            if (code != 200) {
+                return Result.Error("获取预览链接失败: ${json.optString("msg", "")}")
+            }
+            val data = json.optJSONObject("data")
+            val url = data?.optString("url", "") ?: ""
+            if (url.isEmpty()) {
+                Result.Error("预览链接为空")
+            } else {
+                Result.Success(url)
+            }
+        } catch (e: Exception) {
+            Result.Error("解析预览链接失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 获取 PDF 下载直链（带签名，有效期1小时）
+     *
+     * @param ossPdfPath OSS PDF 文件路径
+     * @return Result<String> PDF 下载 URL
+     */
+    suspend fun getDownloadUrl(ossPdfPath: String): Result<String> = withContext(Dispatchers.Main) {
+        if (!ensureInitialized()) {
+            return@withContext Result.Error("网络初始化失败，请检查网络连接")
+        }
+
+        val script = """
+            (function() {
+                window.__downloadResult = null;
+                window.__downloadError = null;
+                fetch('/law-search/amazonFile/ofdGenerateLink?filePath=$ossPdfPath&fileType=pdf', {
+                    method: 'GET',
+                    headers: {'Accept': 'application/json'}
+                })
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                })
+                .then(function(data) {
+                    window.__downloadResult = JSON.stringify(data);
+                })
+                .catch(function(error) {
+                    window.__downloadError = error.message || 'Unknown error';
+                });
+                return 'started';
+            })()
+        """.trimIndent()
+
+        webView.evaluateJavascript(script, null)
+
+        val result = pollForDownloadResult(timeoutMs = 15000)
+        if (result != null) {
+            return@withContext parseDownloadResult(result)
+        }
+
+        val error = getJavascriptValue("window.__downloadError")
+        if (error != null && error != "null") {
+            return@withContext Result.Error("获取下载链接失败: $error")
+        }
+
+        Result.Error("获取下载链接超时，请稍后重试")
+    }
+
+    /**
+     * 轮询等待下载结果
+     */
+    private suspend fun pollForDownloadResult(timeoutMs: Long): String? {
+        val startTime = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startTime < timeoutMs) {
+            val value = getJavascriptValue("window.__downloadResult")
+            if (value != null && value != "null" && value.isNotEmpty()) {
+                return value
+            }
+            kotlinx.coroutines.delay(200)
+        }
+        return null
+    }
+
+    /**
+     * 解析下载结果
+     */
+    private fun parseDownloadResult(jsonString: String): Result<String> {
+        return try {
+            val cleanedJson = jsonString.removeSurrounding("\"")
+                .replace("\\\"", "\"")
+                .replace("\\n", "\n")
+                .replace("\\\\", "\\")
+            val json = org.json.JSONObject(cleanedJson)
+            val file = json.optJSONObject("file")
+            val downloadUrl = file?.optString("download_url", "") ?: ""
+            if (downloadUrl.isEmpty()) {
+                Result.Error("下载链接为空")
+            } else {
+                Result.Success(downloadUrl)
+            }
+        } catch (e: Exception) {
+            Result.Error("解析下载链接失败: ${e.message}")
+        }
+    }
+
+    /**
      * 释放资源
      */
     fun destroy() {

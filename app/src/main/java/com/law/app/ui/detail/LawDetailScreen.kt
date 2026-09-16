@@ -2,7 +2,6 @@ package com.law.app.ui.detail
 
 import android.annotation.SuppressLint
 import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.view.ViewGroup
@@ -240,22 +239,14 @@ fun LawDetailScreen(
                                 modifier = Modifier.weight(1f)
                             )
 
-                            // 复制全文
+                            // 复制全文（OFD 预览暂不支持文本提取，提示下载后复制）
                             AssistChip(
                                 onClick = {
-                                    webView?.evaluateJavascript(
-                                        "(function() { var el = document.querySelector('.content, .article, .law-content, #content, .detail-content'); if (el) return el.innerText; var main = document.querySelector('main, article'); if (main) return main.innerText; return document.body.innerText; })()",
-                                    ) { result ->
-                                        val text = result?.removeSurrounding("\"")?.replace("\\n", "\n")?.replace("\\\"", "\"") ?: ""
-                                        if (text.isNotBlank() && text != "null") {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            val clip = ClipData.newPlainText("法规全文", text)
-                                            clipboard.setPrimaryClip(clip)
-                                            Toast.makeText(context, "全文已复制", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, "正文加载中，请稍后再试", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
+                                    Toast.makeText(
+                                        context,
+                                        "OFD 预览暂不支持复制全文，请下载 PDF 后复制",
+                                        Toast.LENGTH_LONG
+                                    ).show()
                                 },
                                 label = { Text("复制全文", style = MaterialTheme.typography.labelLarge) },
                                 leadingIcon = {
@@ -323,10 +314,6 @@ fun LawDetailScreen(
 
                                             override fun onPageFinished(view: WebView?, url: String?) {
                                                 isContentLoading = false
-                                                // 注入移动端 CSS
-                                                view?.postDelayed({
-                                                    injectMobileCss(view)
-                                                }, 300)
                                             }
 
                                             override fun shouldOverrideUrlLoading(
@@ -353,19 +340,46 @@ fun LawDetailScreen(
                                             request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                                             request.setDestinationInExternalPublicDir(
                                                 android.os.Environment.DIRECTORY_DOWNLOADS,
-                                                "法规宝典/${law.title}.${if (mimeType.contains("pdf")) "pdf" else "docx"}"
+                                                "法规宝典/${law.title}.pdf"
                                             )
                                             val dm = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
                                             dm.enqueue(request)
                                             Toast.makeText(ctx, "开始下载…", Toast.LENGTH_SHORT).show()
                                         })
 
-                                        loadUrl("${Constants.OFFICIAL_URL}detail?bbbs=$lawId")
                                         webView = this
                                     }
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
+
+                            // 监听预览 URL 变化，加载 OFD 阅读器
+                            LaunchedEffect(uiState.previewUrl) {
+                                val url = uiState.previewUrl
+                                if (!url.isNullOrEmpty()) {
+                                    webView?.loadUrl(url)
+                                }
+                            }
+
+                            // 预览加载中
+                            if (uiState.isPreviewLoading && uiState.previewUrl == null) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .align(Alignment.Center),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        CircularProgressIndicator()
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = "正在加载法规预览…",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
 
                             // 内容加载进度条
                             if (isContentLoading && contentProgress in 1..99) {
@@ -437,113 +451,6 @@ fun LawDetailScreen(
             }
         }
     }
-}
-
-/**
- * 注入移动端 CSS，优化法规正文在手机上的显示效果
- */
-private fun injectMobileCss(webView: WebView?) {
-    val css = """
-        (function() {
-            var style = document.createElement('style');
-            style.textContent = `
-                /* 隐藏桌面端元素 */
-                header, .header, .nav, .navbar, .sidebar, .aside, .footer, .breadcrumb, .search-bar, .filter-bar, .page-header, .el-header, .el-aside {
-                    display: none !important;
-                }
-                
-                /* 正文区域优化 */
-                .content, .article, .law-content, #content, .detail-content, .el-main, main, article {
-                    max-width: 100% !important;
-                    width: 100% !important;
-                    padding: 16px !important;
-                    margin: 0 !important;
-                    font-size: 16px !important;
-                    line-height: 1.8 !important;
-                    color: #333 !important;
-                    background: #fff !important;
-                    box-sizing: border-box !important;
-                }
-                
-                /* 条文标题优化 */
-                .article-title, .tiao-title, .tiao, .article-item h3, .article-item h4 {
-                    font-size: 17px !important;
-                    font-weight: 600 !important;
-                    margin-top: 20px !important;
-                    margin-bottom: 8px !important;
-                    color: #1a73e8 !important;
-                    padding: 0 !important;
-                }
-                
-                /* 编/章/节标题优化 */
-                .chapter-title, .bian-title, .jie-title, .bian, .zhang, .jie {
-                    font-size: 18px !important;
-                    font-weight: 700 !important;
-                    text-align: center !important;
-                    margin: 24px 0 12px !important;
-                    color: #333 !important;
-                }
-                
-                /* 段落优化 */
-                p, .paragraph, .content p {
-                    margin: 0 0 12px !important;
-                    text-indent: 2em !important;
-                    font-size: 16px !important;
-                    line-height: 1.8 !important;
-                }
-                
-                /* 表格适配 */
-                table {
-                    width: 100% !important;
-                    font-size: 14px !important;
-                    border-collapse: collapse !important;
-                    display: block !important;
-                    overflow-x: auto !important;
-                }
-                td, th {
-                    padding: 8px !important;
-                    border: 1px solid #ddd !important;
-                    word-break: break-all !important;
-                }
-                
-                /* 列表优化 */
-                ul, ol {
-                    padding-left: 24px !important;
-                    margin: 8px 0 !important;
-                }
-                li {
-                    margin-bottom: 6px !important;
-                    font-size: 16px !important;
-                    line-height: 1.8 !important;
-                }
-                
-                /* 题注/目录优化 */
-                .ti-zhu, .caption, .mu-lu, .toc {
-                    text-align: center !important;
-                    font-weight: 600 !important;
-                    margin: 16px 0 !important;
-                }
-                
-                /* 隐藏多余的空白 */
-                body {
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    background: #fff !important;
-                }
-                
-                /* 确保内容容器占满宽度 */
-                .container, .wrapper, .el-container, #app > div {
-                    max-width: 100% !important;
-                    width: 100% !important;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                }
-            `;
-            document.head.appendChild(style);
-            return 'CSS injected';
-        })()
-    """.trimIndent()
-    webView?.evaluateJavascript(css, null)
 }
 
 /**

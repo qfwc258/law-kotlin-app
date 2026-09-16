@@ -108,6 +108,41 @@ class LawDownloadManager(private val context: Context) {
     }
 
     /**
+     * 从直链下载文件
+     * @param url 下载直链
+     * @param title 通知栏标题
+     * @param notificationTitle 通知栏描述
+     * @param mimeType MIME 类型
+     */
+    fun downloadFromUrl(
+        url: String,
+        title: String,
+        notificationTitle: String = "正在下载…",
+        mimeType: String = "application/pdf"
+    ) {
+        val stateKey = "url_${System.currentTimeMillis()}"
+        val safeTitle = title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+
+        val request = DownloadManager.Request(Uri.parse(url))
+            .setTitle(safeTitle)
+            .setDescription(notificationTitle)
+            .setMimeType(mimeType)
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(false)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "法规宝典/$safeTitle")
+
+        try {
+            val downloadId = downloadManager.enqueue(request)
+            activeDownloads[downloadId] = stateKey
+            updateState(stateKey, DownloadState.Downloading(downloadId, 0))
+            startProgressPolling(downloadId, stateKey)
+        } catch (e: Exception) {
+            updateState(stateKey, DownloadState.Failed("下载失败: ${e.message}"))
+        }
+    }
+
+    /**
      * 打开已下载的文件
      */
     fun openDownloadedFile(law: Law, format: String = "pdf") {

@@ -23,7 +23,9 @@ data class DetailUiState(
     val error: String? = null,
     val isFavorite: Boolean = false,
     val pdfDownloadState: DownloadState = DownloadState.Idle,
-    val wpsDownloadState: DownloadState = DownloadState.Idle
+    val wpsDownloadState: DownloadState = DownloadState.Idle,
+    val previewUrl: String? = null,
+    val isPreviewLoading: Boolean = false
 )
 
 class LawDetailViewModel(
@@ -52,7 +54,7 @@ class LawDetailViewModel(
 
     fun loadLaw(lawId: String) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null, previewUrl = null)
 
             // 先查本地收藏状态
             val favorite = repository.isFavorite(lawId)
@@ -69,6 +71,27 @@ class LawDetailViewModel(
                         articles = articles,
                         isLoading = false
                     )
+
+                    // 获取 OFD 预览 URL
+                    val ossPdfPath = law.ossPdfPath
+                    if (!ossPdfPath.isNullOrEmpty()) {
+                        _uiState.value = _uiState.value.copy(isPreviewLoading = true)
+                        val previewResult = parser.getPreviewUrl(ossPdfPath)
+                        when (previewResult) {
+                            is Result.Success -> {
+                                _uiState.value = _uiState.value.copy(
+                                    previewUrl = previewResult.data,
+                                    isPreviewLoading = false
+                                )
+                            }
+                            is Result.Error -> {
+                                _uiState.value = _uiState.value.copy(
+                                    isPreviewLoading = false
+                                )
+                            }
+                            is Result.Loading -> {}
+                        }
+                    }
                 }
                 is Result.Error -> {
                     _uiState.value = _uiState.value.copy(
@@ -90,10 +113,37 @@ class LawDetailViewModel(
         }
     }
 
-    /** 下载 PDF */
+    /** 下载 PDF（通过 ofdGenerateLink 获取直链） */
     fun downloadPdf() {
         val law = _uiState.value.law ?: return
-        downloadManager.download(law, "pdf")
+        val ossPdfPath = law.ossPdfPath
+        if (ossPdfPath.isNullOrEmpty()) {
+            // 没有 PDF 路径，用旧方式下载
+            downloadManager.download(law, "pdf")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                pdfDownloadState = DownloadState.Downloading(0)
+            )
+            val result = parser.getDownloadUrl(ossPdfPath)
+            when (result) {
+                is Result.Success -> {
+                    // 用系统 DownloadManager 下载直链
+                    downloadManager.downloadFromUrl(
+                        url = result.data,
+                        title = "${law.title}.pdf",
+                        notificationTitle = "正在下载：${law.title}"
+                    )
+                }
+                is Result.Error -> {
+                    _uiState.value = _uiState.value.copy(
+                        pdfDownloadState = DownloadState.Failed(result.message)
+                    )
+                }
+                is Result.Loading -> {}
+            }
+        }
     }
 
     /** 下载 WPS */
