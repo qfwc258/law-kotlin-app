@@ -478,62 +478,8 @@ class LawDetailActivity : AppCompatActivity() {
                                     if (child === target) {
                                         keepOnlyPath(child, pathIndex + 1);
                                     } else {
-                                        // 检查是否是下载按键，如果是则保留
-                                        var childClass = child.className || '';
-                                        var childId = child.id || '';
-                                        var isDownloadButton = typeof childClass === 'string' && childClass.indexOf('download') >= 0;
-                                        var hasDownloadChild = child.querySelector && child.querySelector('.download, [class*="download"]');
-                                        
-                                        if (isDownloadButton || hasDownloadChild) {
-                                            // 保留下载按键相关元素，但需要进一步处理
-                                            child.style.display = 'block';
-                                            
-                                            // 找到真正的下载按钮（class 为 download 的 span）
-                                            var downloadBtn = child.querySelector('.download') || (child.classList && child.classList.contains('download') ? child : null);
-                                            
-                                            if (downloadBtn) {
-                                                // 把下载按钮移动到 body 直接子元素，避免被父元素样式影响
-                                                document.body.appendChild(downloadBtn);
-                                                
-                                                // 设置下载按钮样式：小尺寸，右上角，与目录按钮对齐
-                                                downloadBtn.style.display = 'flex';
-                                                downloadBtn.style.alignItems = 'center';
-                                                downloadBtn.style.justifyContent = 'center';
-                                                downloadBtn.style.position = 'fixed';
-                                                downloadBtn.style.top = '56px';  // 与左上角目录按钮同一水平线
-                                                downloadBtn.style.right = '12px';
-                                                downloadBtn.style.zIndex = '10000';
-                                                downloadBtn.style.background = '#fff';
-                                                downloadBtn.style.width = '36px';
-                                                downloadBtn.style.height = '36px';
-                                                downloadBtn.style.borderRadius = '50%';
-                                                downloadBtn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
-                                                downloadBtn.style.cursor = 'pointer';
-                                                downloadBtn.style.padding = '0';
-                                                downloadBtn.style.margin = '0';
-                                                
-                                                // 隐藏下载按钮中的文字，只保留图标
-                                                var textNodes = [];
-                                                for (var n = downloadBtn.childNodes.length - 1; n >= 0; n--) {
-                                                    if (downloadBtn.childNodes[n].nodeType === 3) {
-                                                        downloadBtn.childNodes[n].textContent = '';
-                                                    }
-                                                }
-                                                
-                                                // 设置图标大小
-                                                var icon = downloadBtn.querySelector('svg, i, img');
-                                                if (icon) {
-                                                    icon.style.width = '18px';
-                                                    icon.style.height = '18px';
-                                                    icon.style.display = 'block';
-                                                }
-                                                
-                                                // 隐藏原来的父元素（弹出框）
-                                                child.style.display = 'none';
-                                            }
-                                        } else {
-                                            child.style.display = 'none';
-                                        }
+                                        // 隐藏所有非路径上的元素（包括原网页的下载按钮，因为我们用 ActionBar 的下载按钮）
+                                        child.style.display = 'none';
                                     }
                                 }
                             }
@@ -688,66 +634,6 @@ class LawDetailActivity : AppCompatActivity() {
                                 window.dispatchEvent(new Event('resize'));
                             }, 500);
                             
-                            // 定期清理下载弹出框：只保留下载按钮，隐藏二维码和WPS版本按钮
-                            setInterval(function() {
-                                try {
-                                    // 找到所有下载相关的弹出框
-                                    var popups = document.querySelectorAll('.el-tooltip__popper, [class*="tooltip"], [class*="popover"], [class*="dropdown"]');
-                                    for (var i = 0; i < popups.length; i++) {
-                                        var popup = popups[i];
-                                        // 检查是否包含下载按钮或二维码
-                                        if (popup.querySelector('.download, [class*="download"], img[src*="qrcode"], canvas')) {
-                                            // 隐藏弹出框
-                                            popup.style.display = 'none';
-                                        }
-                                    }
-                                    
-                                    // 确保下载按钮在正确位置
-                                    var downloadBtns = document.querySelectorAll('.download');
-                                    for (var j = 0; j < downloadBtns.length; j++) {
-                                        var btn = downloadBtns[j];
-                                        if (btn.style.position !== 'fixed') {
-                                            // 把下载按钮移动到 body 直接子元素
-                                            document.body.appendChild(btn);
-                                            
-                                            // 设置下载按钮样式
-                                            btn.style.display = 'flex';
-                                            btn.style.alignItems = 'center';
-                                            btn.style.justifyContent = 'center';
-                                            btn.style.position = 'fixed';
-                                            btn.style.top = '56px';
-                                            btn.style.right = '12px';
-                                            btn.style.zIndex = '10000';
-                                            btn.style.background = '#fff';
-                                            btn.style.width = '36px';
-                                            btn.style.height = '36px';
-                                            btn.style.borderRadius = '50%';
-                                            btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
-                                            btn.style.cursor = 'pointer';
-                                            btn.style.padding = '0';
-                                            btn.style.margin = '0';
-                                            
-                                            // 隐藏文字，只保留图标
-                                            for (var n = btn.childNodes.length - 1; n >= 0; n--) {
-                                                if (btn.childNodes[n].nodeType === 3) {
-                                                    btn.childNodes[n].textContent = '';
-                                                }
-                                            }
-                                            
-                                            // 设置图标大小
-                                            var icon = btn.querySelector('svg, i, img');
-                                            if (icon) {
-                                                icon.style.width = '18px';
-                                                icon.style.height = '18px';
-                                                icon.style.display = 'block';
-                                            }
-                                        }
-                                    }
-                                } catch(e) {
-                                    // 忽略错误
-                                }
-                            }, 1000);
-                            
                         } catch(e) {
                             console.log('readerOnlyMode error:', e);
                         }
@@ -764,10 +650,90 @@ class LawDetailActivity : AppCompatActivity() {
         view.evaluateJavascript(js, null)
     }
 
+    override fun onCreateOptionsMenu(menu: android.view.Menu?): Boolean {
+        menuInflater.inflate(R.menu.menu_detail, menu)
+        return true
+    }
+
+    /**
+     * 通过 JavaScript 触发下载：
+     * 1. 点击原网页的下载按钮，显示弹出框
+     * 2. 等待 500ms 后，点击弹出框里的"下载"按钮，触发下载
+     */
+    private fun triggerDownload() {
+        Toast.makeText(this, "正在准备下载…", Toast.LENGTH_SHORT).show()
+
+        val jsCode = """
+            (function() {
+                try {
+                    // 找到原网页的下载按钮并点击
+                    var downloadBtn = document.querySelector('.download');
+                    if (downloadBtn) {
+                        downloadBtn.click();
+                        
+                        // 等待 500ms 后，点击弹出框里的"下载"按钮
+                        setTimeout(function() {
+                            try {
+                                // 找到弹出框里的下载按钮（包含"下载"文字的按钮）
+                                var popups = document.querySelectorAll('.el-tooltip__popper, [class*="tooltip"], [class*="popover"]');
+                                var clicked = false;
+                                for (var i = 0; i < popups.length; i++) {
+                                    var popup = popups[i];
+                                    if (popup.style.display !== 'none' && popup.offsetParent !== null) {
+                                        // 找到弹出框里所有按钮
+                                        var buttons = popup.querySelectorAll('button, [role="button"], span, a');
+                                        for (var j = 0; j < buttons.length; j++) {
+                                            var btn = buttons[j];
+                                            var text = (btn.textContent || '').trim();
+                                            // 点击包含"下载"但不包含"WPS"的按钮
+                                            if (text.indexOf('下载') >= 0 && text.indexOf('WPS') < 0 && text.indexOf('扫码') < 0) {
+                                                btn.click();
+                                                clicked = true;
+                                                break;
+                                            }
+                                        }
+                                        if (clicked) break;
+                                    }
+                                }
+                                
+                                // 如果没找到弹出框里的按钮，直接找页面上所有包含"下载"的按钮
+                                if (!clicked) {
+                                    var allButtons = document.querySelectorAll('button, [role="button"], span, a');
+                                    for (var k = 0; k < allButtons.length; k++) {
+                                        var btn2 = allButtons[k];
+                                        var text2 = (btn2.textContent || '').trim();
+                                        if (text2 === '下载' || (text2.indexOf('下载') >= 0 && text2.indexOf('WPS') < 0 && text2.indexOf('扫码') < 0 && btn2.offsetParent !== null)) {
+                                            btn2.click();
+                                            break;
+                                        }
+                                    }
+                                }
+                            } catch(e) {
+                                console.error('Click download in popup error:', e);
+                            }
+                        }, 500);
+                    } else {
+                        console.log('Download button not found');
+                    }
+                } catch(e) {
+                    console.error('Trigger download error:', e);
+                }
+            })();
+        """.trimIndent()
+
+        webView.post {
+            webView.evaluateJavascript(jsCode, null)
+        }
+    }
+
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             android.R.id.home -> {
                 onBackPressed()
+                true
+            }
+            R.id.action_download -> {
+                triggerDownload()
                 true
             }
             else -> super.onOptionsItemSelected(item)
