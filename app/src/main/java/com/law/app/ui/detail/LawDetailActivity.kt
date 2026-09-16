@@ -271,6 +271,35 @@ class LawDetailActivity : AppCompatActivity() {
                             container.style.height = '100%';
                             container.style.zIndex = '9999';
                             container.style.background = '#fff';
+                            container.style.overflow = 'auto';
+                            container.style.webkitOverflowScrolling = 'touch';
+                            
+                            // 让 iframe 自适应手机宽度
+                            var iframe = container.querySelector('iframe');
+                            if (iframe) {
+                                iframe.style.width = '100%';
+                                iframe.style.height = '100%';
+                                iframe.style.border = 'none';
+                                iframe.style.display = 'block';
+                                iframe.setAttribute('scrolling', 'auto');
+                            }
+                            
+                            // 让 canvas 自适应手机宽度
+                            var canvas = container.querySelector('canvas');
+                            if (canvas) {
+                                canvas.style.width = '100%';
+                                canvas.style.height = 'auto';
+                                canvas.style.display = 'block';
+                            }
+                            
+                            // 添加 viewport meta 标签，确保移动端适配
+                            var viewport = document.querySelector('meta[name="viewport"]');
+                            if (!viewport) {
+                                viewport = document.createElement('meta');
+                                viewport.setAttribute('name', 'viewport');
+                                document.head.appendChild(viewport);
+                            }
+                            viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes');
                             
                             // 把阅读器容器添加到 body（确保它在最顶层）
                             document.body.appendChild(container);
@@ -278,6 +307,11 @@ class LawDetailActivity : AppCompatActivity() {
                             // 隐藏 html 和 body 的滚动条，让阅读器全屏显示
                             document.documentElement.style.overflow = 'hidden';
                             document.body.style.overflow = 'hidden';
+                            
+                            // 延迟触发 resize 事件，让阅读器重新计算布局
+                            setTimeout(function() {
+                                window.dispatchEvent(new Event('resize'));
+                            }, 500);
                             
                         } catch(e) {
                             console.log('readerOnlyMode error:', e);
