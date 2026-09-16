@@ -102,6 +102,23 @@ fun LawDetailScreen(
         viewModel.loadLaw(lawId)
     }
 
+    // 监听预览 URL 变化，加载 OFD 阅读器（在顶层执行，避免在条件分支内导致问题）
+    LaunchedEffect(uiState.previewUrl) {
+        val url = uiState.previewUrl
+        if (!url.isNullOrEmpty()) {
+            webView?.loadUrl(url)
+        }
+    }
+
+    // WebView 生命周期管理
+    DisposableEffect(Unit) {
+        onDispose {
+            webView?.stopLoading()
+            webView?.destroy()
+            webView = null
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -156,7 +173,7 @@ fun LawDetailScreen(
                     )
                 }
                 uiState.law != null -> {
-                    val law = uiState.law!!
+                    uiState.law?.let { law ->
                     Column(modifier = Modifier.fillMaxSize()) {
                         // 基本信息卡片
                         Card(
@@ -349,18 +366,18 @@ fun LawDetailScreen(
                                         })
 
                                         webView = this
+
+                                        // WebView 创建后，如果预览 URL 已存在，立即加载
+                                        post {
+                                            val url = uiState.previewUrl
+                                            if (!url.isNullOrEmpty()) {
+                                                loadUrl(url)
+                                            }
+                                        }
                                     }
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
-
-                            // 监听预览 URL 变化，加载 OFD 阅读器
-                            LaunchedEffect(uiState.previewUrl) {
-                                val url = uiState.previewUrl
-                                if (!url.isNullOrEmpty()) {
-                                    webView?.loadUrl(url)
-                                }
-                            }
 
                             // 预览加载中
                             if (uiState.isPreviewLoading && uiState.previewUrl == null) {
@@ -403,6 +420,7 @@ fun LawDetailScreen(
                             }
                         }
                     }
+                    } // end of let
                 }
             }
         }
