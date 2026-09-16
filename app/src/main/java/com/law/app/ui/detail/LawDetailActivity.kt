@@ -858,8 +858,8 @@ class LawDetailActivity : AppCompatActivity() {
 
     /**
      * 通过 JavaScript 触发下载：
-     * 1. 点击原网页的下载按钮，显示弹出框
-     * 2. 等待 500ms 后，点击弹出框里的"下载"按钮，触发下载
+     * 1. 点击原网页的下载按钮，显示下拉菜单（点击下载/扫码下载）
+     * 2. 等待下拉菜单显示后，点击"点击下载"选项
      */
     private fun triggerDownload() {
         Toast.makeText(this, "正在准备下载…", Toast.LENGTH_SHORT).show()
@@ -867,83 +867,92 @@ class LawDetailActivity : AppCompatActivity() {
         val jsCode = """
             (function() {
                 try {
-                    // 第一步：显示所有被隐藏的下载相关元素
-                    // 因为 keepOnlyPath 函数隐藏了所有非路径上的元素
-                    var allElements = document.querySelectorAll('*');
-                    for (var i = 0; i < allElements.length; i++) {
-                        var el = allElements[i];
-                        var elClass = el.className || '';
-                        var elText = (el.textContent || '').trim();
-                        // 显示包含 download 类的元素，或包含"下载"文字的按钮
-                        if ((typeof elClass === 'string' && elClass.indexOf('download') >= 0) ||
-                            (elText.indexOf('下载') >= 0 && elText.indexOf('WPS') < 0 && elText.indexOf('扫码') < 0 && el.tagName.match(/BUTTON|SPAN|A|DIV/))) {
-                            el.style.display = '';
-                            el.style.visibility = 'visible';
-                            el.style.opacity = '1';
-                        }
-                    }
+                    console.log('triggerDownload started');
                     
-                    // 显示所有弹出框
-                    var popups = document.querySelectorAll('.el-tooltip__popper, [class*="tooltip"], [class*="popover"], [class*="dropdown"]');
-                    for (var j = 0; j < popups.length; j++) {
-                        popups[j].style.display = '';
-                        popups[j].style.visibility = 'visible';
-                        popups[j].style.opacity = '1';
-                    }
-                    
-                    // 第二步：找到原网页的下载按钮并点击
+                    // 第一步：找到原网页的下载按钮并点击
                     var downloadBtn = document.querySelector('.download') || 
                                       document.querySelector('[class*="download"]') ||
-                                      Array.from(document.querySelectorAll('span, button, a')).find(function(el) {
-                                          return (el.textContent || '').trim() === '下载';
+                                      Array.from(document.querySelectorAll('span, button, a, div')).find(function(el) {
+                                          var text = (el.textContent || '').trim();
+                                          return text === '下载' && el.offsetParent !== null;
                                       });
                     
                     if (downloadBtn) {
+                        console.log('Found download button, clicking...');
                         // 确保按钮可见
                         downloadBtn.style.display = '';
                         downloadBtn.style.visibility = 'visible';
+                        downloadBtn.style.opacity = '1';
                         downloadBtn.click();
                         
-                        // 等待 800ms 后，点击弹出框里的"下载"按钮
+                        // 等待 600ms 让下拉菜单显示
                         setTimeout(function() {
                             try {
-                                // 再次确保所有弹出框可见
-                                var allPopups = document.querySelectorAll('.el-tooltip__popper, [class*="tooltip"], [class*="popover"], [class*="dropdown"]');
-                                for (var k = 0; k < allPopups.length; k++) {
-                                    allPopups[k].style.display = '';
-                                    allPopups[k].style.visibility = 'visible';
-                                    allPopups[k].style.opacity = '1';
+                                console.log('Looking for download options...');
+                                
+                                // 显示所有可能的下拉菜单/弹出框
+                                var popups = document.querySelectorAll('.el-dropdown-menu, .el-popper, .el-tooltip__popper, [class*="dropdown"], [class*="popover"], [class*="popper"]');
+                                for (var i = 0; i < popups.length; i++) {
+                                    popups[i].style.display = 'block';
+                                    popups[i].style.visibility = 'visible';
+                                    popups[i].style.opacity = '1';
+                                    popups[i].style.zIndex = '99999';
                                 }
                                 
-                                // 找到弹出框里的下载按钮（包含"下载"文字但不包含"WPS"和"扫码"）
-                                var clicked = false;
-                                var allButtons = document.querySelectorAll('button, [role="button"], span, a, div');
-                                for (var m = 0; m < allButtons.length; m++) {
-                                    var btn = allButtons[m];
-                                    var text = (btn.textContent || '').trim();
-                                    // 只点击直接包含"下载"文字的元素（避免点击父元素）
-                                    var hasDirectText = false;
-                                    for (var n = 0; n < btn.childNodes.length; n++) {
-                                        if (btn.childNodes[n].nodeType === 3 && btn.childNodes[n].textContent.trim().indexOf('下载') >= 0) {
-                                            hasDirectText = true;
-                                            break;
-                                        }
-                                    }
-                                    if (hasDirectText && text.indexOf('下载') >= 0 && text.indexOf('WPS') < 0 && text.indexOf('扫码') < 0 && btn.offsetParent !== null) {
-                                        btn.click();
-                                        clicked = true;
-                                        console.log('Clicked download button:', text);
+                                // 优先找"点击下载"选项
+                                var clickDownloadBtn = null;
+                                var allElements = document.querySelectorAll('*');
+                                for (var j = 0; j < allElements.length; j++) {
+                                    var el = allElements[j];
+                                    var text = (el.textContent || '').trim();
+                                    // 精确匹配"点击下载"
+                                    if (text === '点击下载' && el.offsetParent !== null) {
+                                        clickDownloadBtn = el;
                                         break;
                                     }
                                 }
                                 
-                                if (!clicked) {
-                                    console.log('Download button in popup not found');
+                                // 如果没找到"点击下载"，找包含"下载"但不包含"扫码"的可见元素
+                                if (!clickDownloadBtn) {
+                                    for (var k = 0; k < allElements.length; k++) {
+                                        var el2 = allElements[k];
+                                        var text2 = (el2.textContent || '').trim();
+                                        if (text2.indexOf('下载') >= 0 && 
+                                            text2.indexOf('扫码') < 0 && 
+                                            text2.indexOf('WPS') < 0 &&
+                                            text2.length <= 10 &&
+                                            el2.offsetParent !== null &&
+                                            el2.tagName.match(/A|BUTTON|SPAN|LI|DIV/)) {
+                                            clickDownloadBtn = el2;
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                if (clickDownloadBtn) {
+                                    console.log('Found click-download option:', clickDownloadBtn.textContent.trim());
+                                    // 确保选项可见
+                                    clickDownloadBtn.style.display = '';
+                                    clickDownloadBtn.style.visibility = 'visible';
+                                    clickDownloadBtn.style.opacity = '1';
+                                    // 点击选项
+                                    clickDownloadBtn.click();
+                                    console.log('Clicked download option, download should start');
+                                } else {
+                                    console.log('Click-download option not found');
+                                    // 打印所有可见的包含"下载"的元素，用于调试
+                                    for (var m = 0; m < allElements.length; m++) {
+                                        var el3 = allElements[m];
+                                        var text3 = (el3.textContent || '').trim();
+                                        if (text3.indexOf('下载') >= 0 && el3.offsetParent !== null && text3.length < 20) {
+                                            console.log('  Found element:', text3, 'tag:', el3.tagName, 'class:', el3.className);
+                                        }
+                                    }
                                 }
                             } catch(e) {
-                                console.error('Click download in popup error:', e);
+                                console.error('Click download option error:', e);
                             }
-                        }, 800);
+                        }, 600);
                     } else {
                         console.log('Download button not found');
                     }
