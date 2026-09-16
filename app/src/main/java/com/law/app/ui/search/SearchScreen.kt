@@ -200,13 +200,7 @@ fun SearchScreen(
                             MaterialTheme.colorScheme.primaryContainer
                         else
                             MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    border = if (isSelected)
-                        AssistChipDefaults.assistChipBorder(
-                            borderColor = MaterialTheme.colorScheme.primary
-                        )
-                    else
-                        AssistChipDefaults.assistChipBorder()
+                    )
                 )
             }
         }
