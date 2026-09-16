@@ -164,13 +164,14 @@ fun SearchScreen(
             }
         }
 
-        // 筛选行：法规类型（与首页大类一致）
-        Row(
+        // 筛选行：法规类型（与首页大类一致），使用 FlowRow 自动换行
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             listOf(
                 LawType.ALL to "全部",
@@ -181,20 +182,31 @@ fun SearchScreen(
                 LawType.LOCAL to "地方法规",
                 LawType.JUDICIAL to "司法解释"
             ).forEach { (type, label) ->
+                val isSelected = uiState.selectedType == type
                 AssistChip(
                     onClick = { viewModel.onTypeChange(type) },
                     label = {
                         Text(
                             text = label,
-                            style = MaterialTheme.typography.labelLarge
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (isSelected)
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     },
                     colors = AssistChipDefaults.assistChipColors(
-                        containerColor = if (uiState.selectedType == type)
+                        containerColor = if (isSelected)
                             MaterialTheme.colorScheme.primaryContainer
                         else
                             MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    ),
+                    border = if (isSelected)
+                        AssistChipDefaults.assistChipBorder(
+                            borderColor = MaterialTheme.colorScheme.primary
+                        )
+                    else
+                        AssistChipDefaults.assistChipBorder()
                 )
             }
         }
