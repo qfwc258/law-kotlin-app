@@ -9,245 +9,178 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.law.app.data.model.LawType
-import com.law.app.data.model.SearchMode
-import com.law.app.data.model.SortOrder
-import com.law.app.ui.common.EmptyState
-import com.law.app.ui.common.ErrorState
-import com.law.app.ui.common.LawCard
-import com.law.app.ui.common.LoadingState
+import com.law.app.ui.webview.LawWebViewScreen
+import com.law.app.util.Constants
+import java.net.URLEncoder
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * 搜索页 - 原生搜索框 + WebView 显示搜索结果
+ *
+ * 顶部保留原生搜索输入框，下方用 WebView 加载国家法律法规数据库的搜索结果。
+ * 网站本身已适配手机屏幕，搜索结果和法条详情都在 WebView 内展示。
+ */
 @Composable
 fun SearchScreen(
-    onLawClick: (String) -> Unit,
-    viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory)
+    onLawClick: (String) -> Unit = {}
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val listState = rememberLazyListState()
+    var searchQuery by remember { mutableStateOf(TextFieldValue("")) }
+    var currentUrl by remember { mutableStateOf(Constants.OFFICIAL_URL) }
+    var hasSearched by remember { mutableStateOf(false) }
 
-    // 滚动到底部加载更多
-    LaunchedEffect(listState.canScrollForward) {
-        if (!listState.canScrollForward && uiState.results.isNotEmpty()) {
-            viewModel.loadMore()
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        // 搜索栏
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
+        // 顶部搜索框
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             OutlinedTextField(
-                value = uiState.keyword,
-                onValueChange = viewModel::onKeywordChange,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("输入法规名称或关键词…") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "搜索") },
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { },
+                placeholder = {
+                    Text(
+                        text = "搜索法律法规…",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "搜索",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
                 trailingIcon = {
-                    if (uiState.keyword.isNotBlank()) {
-                        IconButton(onClick = { viewModel.onKeywordChange("") }) {
-                            Icon(Icons.Default.Clear, contentDescription = "清除")
+                    if (searchQuery.text.isNotEmpty()) {
+                        IconButton(onClick = {
+                            searchQuery = TextFieldValue("")
+                            currentUrl = Constants.OFFICIAL_URL
+                            hasSearched = false
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "清除",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 },
-                singleLine = true
+                singleLine = true,
+                shape = RoundedCornerShape(24.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                    unfocusedIndicatorColor = MaterialTheme.colorScheme.outline
+                ),
+                textStyle = MaterialTheme.typography.bodyLarge
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 筛选行：类型 + 搜索方式 + 排序
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // 搜索按钮
+            IconButton(
+                onClick = {
+                    if (searchQuery.text.isNotBlank()) {
+                        val encoded = URLEncoder.encode(searchQuery.text.trim(), "UTF-8")
+                        // 构造搜索 URL（SPA 网站，加载后由前端 JS 处理搜索）
+                        currentUrl = "${Constants.OFFICIAL_URL}search?keyword=$encoded"
+                        hasSearched = true
+                    }
+                }
             ) {
-                // 法规类型下拉
-                TypeDropdown(
-                    selected = uiState.selectedType,
-                    onSelect = viewModel::onTypeChange,
-                    modifier = Modifier.weight(1f)
-                )
-                // 搜索方式
-                FilterChip(
-                    selected = uiState.searchMode == SearchMode.FUZZY,
-                    onClick = {
-                        viewModel.onSearchModeChange(
-                            if (uiState.searchMode == SearchMode.FUZZY)
-                                SearchMode.ACCURATE else SearchMode.FUZZY
-                        )
-                    },
-                    label = { Text(uiState.searchMode.displayName) }
-                )
-                // 排序
-                SortDropdown(
-                    selected = uiState.sortOrder,
-                    onSelect = viewModel::onSortOrderChange
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "搜索",
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }
 
-        // 结果计数
-        if (uiState.hasSearched && uiState.results.isNotEmpty()) {
-            Text(
-                text = "共找到 ${uiState.total} 条结果",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        // 结果列表
-        Box(modifier = Modifier.fillMaxSize()) {
-            when {
-                uiState.isLoading && uiState.results.isEmpty() -> {
-                    LoadingState(modifier = Modifier.align(Alignment.Center))
-                }
-                uiState.error != null && uiState.results.isEmpty() -> {
-                    ErrorState(
-                        message = uiState.error ?: "搜索失败",
-                        onRetry = { viewModel.searchNow() },
-                        modifier = Modifier.align(Alignment.Center)
+        // 热门搜索提示（未搜索时显示）
+        if (!hasSearched) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Column {
+                    Text(
+                        text = "热门搜索",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
-                }
-                uiState.hasSearched && uiState.results.isEmpty() -> {
-                    EmptyState(
-                        message = "未找到相关法规，请尝试其他关键词",
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-                !uiState.hasSearched -> {
-                    EmptyState(
-                        message = "输入关键词开始搜索法律法规",
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-                else -> {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            horizontal = 16.dp,
-                            vertical = 8.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        items(uiState.results, key = { it.id }) { law ->
-                            LawCard(
-                                law = law,
-                                onClick = { onLawClick(law.id) }
+                        listOf("民法典", "刑法", "劳动合同法", "宪法").forEach { keyword ->
+                            androidx.compose.material3.AssistChip(
+                                onClick = {
+                                    searchQuery = TextFieldValue(keyword)
+                                    val encoded = URLEncoder.encode(keyword, "UTF-8")
+                                    currentUrl = "${Constants.OFFICIAL_URL}search?keyword=$encoded"
+                                    hasSearched = true
+                                },
+                                label = {
+                                    Text(
+                                        text = keyword,
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                }
                             )
                         }
-                        if (uiState.isLoadingMore) {
-                            item {
-                                LoadingState()
-                            }
-                        }
-                        item { Spacer(modifier = Modifier.height(16.dp)) }
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "输入关键词后点击搜索，或直接在下方网页中使用网站搜索功能",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
-    }
-}
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TypeDropdown(
-    selected: LawType,
-    onSelect: (LawType) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = modifier
-    ) {
-        OutlinedTextField(
-            value = selected.displayName,
-            onValueChange = {},
-            readOnly = true,
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // WebView 显示搜索结果或网站首页
+        Box(
             modifier = Modifier
+                .weight(1f)
                 .fillMaxWidth()
-                .menuAnchor(),
-            textStyle = MaterialTheme.typography.bodySmall
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
         ) {
-            LawType.entries.forEach { type ->
-                DropdownMenuItem(
-                    text = { Text(type.displayName) },
-                    onClick = {
-                        onSelect(type)
-                        expanded = false
-                    }
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SortDropdown(
-    selected: SortOrder,
-    onSelect: (SortOrder) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded }
-    ) {
-        OutlinedTextField(
-            value = selected.displayName,
-            onValueChange = {},
-            readOnly = true,
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor(),
-            textStyle = MaterialTheme.typography.bodySmall
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            SortOrder.entries.forEach { order ->
-                DropdownMenuItem(
-                    text = { Text(order.displayName) },
-                    onClick = {
-                        onSelect(order)
-                        expanded = false
-                    }
-                )
-            }
+            LawWebViewScreen(
+                url = currentUrl,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }
