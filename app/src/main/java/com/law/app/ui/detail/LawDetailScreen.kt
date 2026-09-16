@@ -63,8 +63,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.gson.Gson
-import com.law.app.data.remote.dto.ContentNode
 import com.law.app.ui.common.ErrorState
 import com.law.app.ui.common.LoadingState
 import com.law.app.ui.common.StatusBadge
@@ -94,6 +92,11 @@ fun LawDetailScreen(
     var contentProgress by remember { mutableStateOf(0) }
     var showCatalogSheet by remember { mutableStateOf(false) }
     val catalogSheetState = rememberModalBottomSheetState()
+
+    // 目录项（在顶层计算，避免在 if 块内使用 remember 导致崩溃）
+    val catalogItems = remember(uiState.law?.contentTreeJson) {
+        uiState.law?.contentTreeJson?.let { parseCatalogItems(it) } ?: emptyList()
+    }
 
     LaunchedEffect(lawId) {
         viewModel.loadLaw(lawId)
@@ -361,12 +364,6 @@ fun LawDetailScreen(
                                         webView = this
                                     }
                                 },
-                                update = { view ->
-                                    // URL 变化时重新加载
-                                    if (view.url != "${Constants.OFFICIAL_URL}detail?bbbs=$lawId" && !isContentLoading) {
-                                        view.loadUrl("${Constants.OFFICIAL_URL}detail?bbbs=$lawId")
-                                    }
-                                },
                                 modifier = Modifier.fillMaxSize()
                             )
 
@@ -397,10 +394,7 @@ fun LawDetailScreen(
     }
 
     // 目录抽屉
-    if (showCatalogSheet && uiState.law?.contentTreeJson != null) {
-        val catalogItems = remember(uiState.law?.contentTreeJson) {
-            parseCatalogItems(uiState.law!!.contentTreeJson!!)
-        }
+    if (showCatalogSheet && catalogItems.isNotEmpty()) {
         ModalBottomSheet(
             onDismissRequest = { showCatalogSheet = false },
             sheetState = catalogSheetState
@@ -562,19 +556,24 @@ private data class CatalogItemData(
 )
 
 /**
- * 从目录树 JSON 解析出扁平化的目录列表
+ * 从目录树 JSON 解析出扁平化的目录列表（使用 org.json，避免 Gson 问题）
  */
 private fun parseCatalogItems(json: String): List<CatalogItemData> {
     return try {
-        val gson = Gson()
-        val root = gson.fromJson(json, ContentNode::class.java)
+        val root = org.json.JSONObject(json)
         val result = mutableListOf<CatalogItemData>()
-        fun traverse(node: ContentNode, depth: Int) {
-            if (depth > 0) {
-                val isArticle = node.title?.startsWith("第") == true && node.title.contains("条")
-                result.add(CatalogItemData(node.title ?: "", depth, isArticle))
+        fun traverse(node: org.json.JSONObject, depth: Int) {
+            val title = node.optString("title", "")
+            if (depth > 0 && title.isNotEmpty()) {
+                val isArticle = title.startsWith("第") && title.contains("条")
+                result.add(CatalogItemData(title, depth, isArticle))
             }
-            node.children?.forEach { traverse(it, depth + 1) }
+            val children = node.optJSONArray("children")
+            if (children != null) {
+                for (i in 0 until children.length()) {
+                    traverse(children.getJSONObject(i), depth + 1)
+                }
+            }
         }
         traverse(root, 0)
         result

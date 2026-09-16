@@ -54,10 +54,18 @@ import kotlinx.coroutines.flow.filter
 @Composable
 fun SearchScreen(
     onLawClick: (String) -> Unit = {},
+    initialKeyword: String = "",
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
+
+    // 如果有初始关键词，自动搜索
+    LaunchedEffect(initialKeyword) {
+        if (initialKeyword.isNotBlank()) {
+            viewModel.onKeywordChange(initialKeyword)
+        }
+    }
 
     // 监听列表滚动到底部，触发加载更多
     LaunchedEffect(listState) {

@@ -67,7 +67,7 @@ fun AppNavigation() {
                             icon = { Icon(item.icon, contentDescription = item.label) },
                             label = { Text(item.label) },
                             selected = currentDestination?.hierarchy?.any {
-                                it.route == item.route
+                                it.route?.startsWith(item.route) == true
                             } == true,
                             onClick = {
                                 navController.navigate(item.route) {
@@ -94,14 +94,24 @@ fun AppNavigation() {
                     onLawClick = { lawId -> navController.navigate("detail/$lawId") },
                     onSearchClick = { navController.navigate(BottomNavItem.Search.route) },
                     onCategoryClick = { category ->
-                        // 点击大类跳转到搜索页
-                        navController.navigate(BottomNavItem.Search.route)
+                        // 点击大类跳转到搜索页，搜索该大类关键词
+                        navController.navigate("search?keyword=${category.name}")
                     }
                 )
             }
-            composable(BottomNavItem.Search.route) {
+            composable(
+                route = "search?keyword={keyword}",
+                arguments = listOf(
+                    navArgument("keyword") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    }
+                )
+            ) { backStackEntry ->
+                val keyword = backStackEntry.arguments?.getString("keyword") ?: ""
                 SearchScreen(
-                    onLawClick = { lawId -> navController.navigate("detail/$lawId") }
+                    onLawClick = { lawId -> navController.navigate("detail/$lawId") },
+                    initialKeyword = keyword
                 )
             }
             composable(BottomNavItem.Favorites.route) {
