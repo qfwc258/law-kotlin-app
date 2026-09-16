@@ -96,10 +96,6 @@ class LawDetailActivity : AppCompatActivity() {
                 cacheMode = WebSettings.LOAD_DEFAULT
                 userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
             }
-            
-            // 设置初始缩放比例，让 OFD 阅读器内容适配手机宽度
-            // OFD 内容固定宽度约 800-1000px，手机屏幕约 360-412px，需要缩放约 40-50%
-            setInitialScale(45)
 
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
@@ -383,7 +379,42 @@ class LawDetailActivity : AppCompatActivity() {
                             setTimeout(function() {
                                 try {
                                     if (reader.tagName === 'IFRAME') {
-                                        // iframe 是跨域的 OFD 阅读器，直接设置全屏
+                                        // iframe 是跨域的 OFD 阅读器，用 CSS transform 缩放父容器
+                                        // 缩放比例：OFD内容约1000px宽，手机屏幕约360-412px，缩放约0.4
+                                        var scale = 0.4;
+                                        
+                                        // 找到 iframe 的直接父容器
+                                        var iframeParent = reader.parentElement;
+                                        
+                                        if (iframeParent) {
+                                            // 设置父容器为相对定位，便于缩放
+                                            iframeParent.style.position = 'relative';
+                                            iframeParent.style.width = '100%';
+                                            iframeParent.style.overflow = 'hidden';
+                                            
+                                            // 用 CSS transform 缩放父容器（包括内部的 iframe）
+                                            iframeParent.style.transform = 'scale(' + scale + ')';
+                                            iframeParent.style.transformOrigin = 'top left';
+                                            
+                                            // 计算缩放后的高度，设置父容器的高度
+                                            var originalHeight = iframeParent.offsetHeight;
+                                            var scaledHeight = originalHeight * scale;
+                                            iframeParent.style.height = scaledHeight + 'px';
+                                            
+                                            // 给父容器添加一个占位兄弟元素，撑起缩放后的高度
+                                            if (!iframeParent.nextElementSibling || !iframeParent.nextElementSibling.classList.contains('scale-placeholder')) {
+                                                var placeholder = document.createElement('div');
+                                                placeholder.className = 'scale-placeholder';
+                                                placeholder.style.height = scaledHeight + 'px';
+                                                placeholder.style.width = '100%';
+                                                placeholder.style.pointerEvents = 'none';
+                                                iframeParent.parentNode.insertBefore(placeholder, iframeParent.nextSibling);
+                                            } else {
+                                                iframeParent.nextElementSibling.style.height = scaledHeight + 'px';
+                                            }
+                                        }
+                                        
+                                        // 设置 iframe 本身的样式
                                         reader.style.width = '100%';
                                         reader.style.height = '100vh';
                                         reader.style.minHeight = '100vh';
@@ -392,16 +423,13 @@ class LawDetailActivity : AppCompatActivity() {
                                         reader.style.margin = '0';
                                         reader.style.padding = '0';
                                         
-                                        // 确保 iframe 的所有父元素也是全屏宽度
-                                        var parent = reader.parentElement;
-                                        while (parent && parent !== document.body) {
-                                            parent.style.width = '100%';
-                                            parent.style.height = '100%';
-                                            parent.style.minHeight = '100vh';
-                                            parent.style.margin = '0';
-                                            parent.style.padding = '0';
-                                            parent.style.overflow = 'hidden';
-                                            parent = parent.parentElement;
+                                        // 确保 iframe 的所有祖先元素也是全屏宽度
+                                        var ancestor = reader.parentElement;
+                                        while (ancestor && ancestor !== document.body) {
+                                            ancestor.style.width = '100%';
+                                            ancestor.style.margin = '0';
+                                            ancestor.style.padding = '0';
+                                            ancestor = ancestor.parentElement;
                                         }
                                     } else {
                                         // 非 iframe 情况：遍历 reader 内所有元素，找到宽度大于屏幕的元素并缩放
