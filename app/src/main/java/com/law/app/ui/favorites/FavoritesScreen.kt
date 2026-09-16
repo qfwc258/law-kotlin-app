@@ -25,7 +25,7 @@ import com.law.app.ui.common.LoadingState
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FavoritesScreen(
-    onLawClick: (String) -> Unit,
+    onLawClick: (String, String) -> Unit,
     viewModel: FavoritesViewModel = viewModel(factory = FavoritesViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -66,7 +66,7 @@ fun FavoritesScreen(
                         items(uiState.favorites, key = { it.id }) { law ->
                             LawCard(
                                 law = law,
-                                onClick = { onLawClick(law.id) },
+                                onClick = { onLawClick(law.id, law.title) },
                                 onFavoriteClick = { viewModel.removeFavorite(law.id) }
                             )
                         }

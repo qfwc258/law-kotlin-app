@@ -54,7 +54,7 @@ import com.law.app.ui.common.ErrorState
  */
 @Composable
 fun HomeScreen(
-    onLawClick: (String) -> Unit = {},
+    onLawClick: (String, String) -> Unit = { _, _ -> },
     onSearchClick: () -> Unit = {},
     onCategoryClick: (LawCategory) -> Unit = {},
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory)
@@ -197,7 +197,7 @@ fun HomeScreen(
                                     uiState.newLaws.forEach { law ->
                                         NewLawItem(
                                             law = law,
-                                            onClick = { onLawClick(law.id) }
+                                            onClick = { onLawClick(law.id, law.title) }
                                         )
                                     }
                                 }

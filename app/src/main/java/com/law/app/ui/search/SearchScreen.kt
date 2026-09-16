@@ -53,7 +53,7 @@ import kotlinx.coroutines.flow.filter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
-    onLawClick: (String) -> Unit = {},
+    onLawClick: (String, String) -> Unit = { _, _ -> },
     initialKeyword: String = "",
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory)
 ) {
@@ -289,7 +289,7 @@ fun SearchScreen(
                         items(uiState.results, key = { it.id }) { law ->
                             LawCard(
                                 law = law,
-                                onClick = { onLawClick(law.id) }
+                                onClick = { onLawClick(law.id, law.title) }
                             )
                         }
 

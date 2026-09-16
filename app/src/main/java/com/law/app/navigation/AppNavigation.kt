@@ -1,5 +1,6 @@
 package com.law.app.navigation
 
+import android.content.Context
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
@@ -13,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -21,7 +23,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.law.app.ui.detail.LawDetailScreen
+import com.law.app.ui.detail.LawDetailActivity
 import com.law.app.ui.favorites.FavoritesScreen
 import com.law.app.ui.home.HomeScreen
 import com.law.app.ui.search.SearchScreen
@@ -45,6 +47,7 @@ sealed class BottomNavItem(
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+    val context: Context = LocalContext.current
     val bottomItems = listOf(
         BottomNavItem.Home,
         BottomNavItem.Search,
@@ -55,31 +58,25 @@ fun AppNavigation() {
         bottomBar = {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentDestination = navBackStackEntry?.destination
-            // 详情页隐藏底部导航
-            val showBottomBar = currentDestination?.hierarchy?.none {
-                it.route?.startsWith("detail/") == true
-            } ?: true
 
-            if (showBottomBar) {
-                NavigationBar {
-                    bottomItems.forEach { item ->
-                        NavigationBarItem(
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = { Text(item.label) },
-                            selected = currentDestination?.hierarchy?.any {
-                                it.route?.startsWith(item.route) == true
-                            } == true,
-                            onClick = {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
+            NavigationBar {
+                bottomItems.forEach { item ->
+                    NavigationBarItem(
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label) },
+                        selected = currentDestination?.hierarchy?.any {
+                            it.route?.startsWith(item.route) == true
+                        } == true,
+                        onClick = {
+                            navController.navigate(item.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
                                 }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                        )
-                    }
+                        }
+                    )
                 }
             }
         }
@@ -91,7 +88,7 @@ fun AppNavigation() {
         ) {
             composable(BottomNavItem.Home.route) {
                 HomeScreen(
-                    onLawClick = { lawId -> navController.navigate("detail/$lawId") },
+                    onLawClick = { lawId, title -> LawDetailActivity.start(context, lawId, title) },
                     onSearchClick = { navController.navigate(BottomNavItem.Search.route) },
                     onCategoryClick = { category ->
                         // 点击大类跳转到搜索页，搜索该大类关键词
@@ -110,23 +107,13 @@ fun AppNavigation() {
             ) { backStackEntry ->
                 val keyword = backStackEntry.arguments?.getString("keyword") ?: ""
                 SearchScreen(
-                    onLawClick = { lawId -> navController.navigate("detail/$lawId") },
+                    onLawClick = { lawId, title -> LawDetailActivity.start(context, lawId, title) },
                     initialKeyword = keyword
                 )
             }
             composable(BottomNavItem.Favorites.route) {
                 FavoritesScreen(
-                    onLawClick = { lawId -> navController.navigate("detail/$lawId") }
-                )
-            }
-            composable(
-                route = "detail/{lawId}",
-                arguments = listOf(navArgument("lawId") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val lawId = backStackEntry.arguments?.getString("lawId") ?: ""
-                LawDetailScreen(
-                    lawId = lawId,
-                    onBack = { navController.popBackStack() }
+                    onLawClick = { lawId, title -> LawDetailActivity.start(context, lawId, title) }
                 )
             }
         }

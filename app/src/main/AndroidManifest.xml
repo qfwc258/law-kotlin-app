@@ -33,6 +33,13 @@
             </intent-filter>
         </activity>
 
+        <!-- 法规详情页（传统 Activity + WebView） -->
+        <activity
+            android:name=".ui.detail.LawDetailActivity"
+            android:exported="false"
+            android:hardwareAccelerated="true"
+            android:theme="@style/Theme.LawKotlinApp" />
+
         <!-- FileProvider：用于下载完成后打开/分享文件 -->
         <provider
             android:name="androidx.core.content.FileProvider"
