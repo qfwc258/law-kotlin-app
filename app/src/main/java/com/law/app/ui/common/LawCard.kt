@@ -87,6 +87,8 @@ fun LawCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 TypeBadge(type = law.type)
+                // 效力状态标签
+                StatusBadge(status = law.status)
                 if (law.issuingAuthority.isNotBlank()) {
                     Text(
                         text = law.issuingAuthority,
@@ -110,13 +112,27 @@ fun LawCard(
                 )
             }
 
-            if (law.effectiveDate.isNotBlank()) {
+            // 公布日期和施行日期
+            if (law.publishDate.isNotBlank() || law.effectiveDate.isNotBlank()) {
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "施行日期：${law.effectiveDate}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if (law.publishDate.isNotBlank()) {
+                        Text(
+                            text = "公布：${law.publishDate}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (law.effectiveDate.isNotBlank()) {
+                        Text(
+                            text = "施行：${law.effectiveDate}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }
@@ -136,6 +152,30 @@ fun TypeBadge(type: LawType, modifier: Modifier = Modifier) {
     }
     Text(
         text = type.displayName,
+        style = MaterialTheme.typography.labelMedium,
+        color = Color.White,
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(color)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    )
+}
+
+/**
+ * 效力状态标签
+ * 1=已修改(橙色), 2=已废止(灰色), 3=现行有效(绿色)
+ */
+@Composable
+fun StatusBadge(status: Int?, modifier: Modifier = Modifier) {
+    if (status == null) return
+    val (text, color) = when (status) {
+        1 -> "已修改" to Color(0xFFFF9800)
+        2 -> "已废止" to Color(0xFF9E9E9E)
+        3 -> "现行有效" to Color(0xFF4CAF50)
+        else -> return
+    }
+    Text(
+        text = text,
         style = MaterialTheme.typography.labelMedium,
         color = Color.White,
         modifier = modifier

@@ -35,20 +35,14 @@ data class LawSearchResponse(
 }
 
 /**
- * 搜索请求体
+ * 搜索请求体（简化版，只传必要字段，避免空 List 导致 Gson 序列化问题）
  */
 data class LawSearchRequest(
     @SerializedName("searchRange") val searchRange: Int = 1,
     @SerializedName("searchType") val searchType: Int = 2,
     @SerializedName("searchContent") val searchContent: String = "",
     @SerializedName("pageNum") val pageNum: Int = 1,
-    @SerializedName("pageSize") val pageSize: Int = 10,
-    @SerializedName("sxrq") val sxrq: List<String> = emptyList(),
-    @SerializedName("gbrq") val gbrq: List<String> = emptyList(),
-    @SerializedName("sxx") val sxx: List<Int> = emptyList(),
-    @SerializedName("gbrqYear") val gbrqYear: List<Int> = emptyList(),
-    @SerializedName("flfgCodeId") val flfgCodeId: List<Int> = emptyList(),
-    @SerializedName("zdjgCodeId") val zdjgCodeId: List<Int> = emptyList()
+    @SerializedName("pageSize") val pageSize: Int = 10
 )
 
 /**
