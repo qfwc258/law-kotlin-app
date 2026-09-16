@@ -8,7 +8,7 @@ import com.law.app.data.model.Law
 import com.law.app.data.model.LawType
 import com.law.app.data.model.SearchMode
 import com.law.app.data.model.SortOrder
-import com.law.app.data.repository.LawRepository
+import com.law.app.data.parser.LawWebParser
 import com.law.app.util.Constants
 import com.law.app.util.Result
 import kotlinx.coroutines.Job
@@ -33,7 +33,7 @@ data class SearchUiState(
 )
 
 class SearchViewModel(
-    private val repository: LawRepository
+    private val parser: LawWebParser
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SearchUiState())
@@ -98,13 +98,10 @@ class SearchViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingMore = true)
             val nextPage = state.currentPage + 1
-            val result = repository.searchLaws(
+            val result = parser.search(
                 keyword = state.keyword,
-                type = state.selectedType,
-                searchMode = state.searchMode,
-                sortOrder = state.sortOrder,
                 page = nextPage,
-                size = Constants.PAGE_SIZE
+                pageSize = Constants.PAGE_SIZE
             )
             when (result) {
                 is Result.Success -> {
@@ -112,7 +109,8 @@ class SearchViewModel(
                         results = _uiState.value.results + result.data.first,
                         total = result.data.second,
                         currentPage = nextPage,
-                        isLoadingMore = false
+                        isLoadingMore = false,
+                        error = null
                     )
                 }
                 is Result.Error -> {
@@ -134,13 +132,10 @@ class SearchViewModel(
                 error = null,
                 hasSearched = true
             )
-            val result = repository.searchLaws(
+            val result = parser.search(
                 keyword = state.keyword,
-                type = state.selectedType,
-                searchMode = state.searchMode,
-                sortOrder = state.sortOrder,
                 page = page,
-                size = Constants.PAGE_SIZE
+                pageSize = Constants.PAGE_SIZE
             )
             when (result) {
                 is Result.Success -> {
@@ -148,7 +143,8 @@ class SearchViewModel(
                         results = result.data.first,
                         total = result.data.second,
                         currentPage = page,
-                        isLoading = false
+                        isLoading = false,
+                        error = null
                     )
                 }
                 is Result.Error -> {
@@ -167,7 +163,9 @@ class SearchViewModel(
         val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return SearchViewModel(LawApp.instance.repository) as T
+                return SearchViewModel(
+                    LawWebParser.getInstance(LawApp.instance)
+                ) as T
             }
         }
     }
