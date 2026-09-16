@@ -236,7 +236,15 @@ class LawDetailActivity : AppCompatActivity() {
                             var reader = null;
                             var readerType = '';
                             
+                            // 0. 优先通过 id 找到 OFD 阅读器 iframe（已知 id 为 previewIframe）
+                            var previewIframe = document.getElementById('previewIframe');
+                            if (previewIframe) {
+                                reader = previewIframe;
+                                readerType = 'previewIframe';
+                            }
+                            
                             // 1. 优先找 iframe（WPS 在线预览通常是 iframe）
+                            if (!reader) {
                             var iframes = document.querySelectorAll('iframe');
                             if (iframes.length > 0) {
                                 var maxArea = 0;
@@ -248,6 +256,7 @@ class LawDetailActivity : AppCompatActivity() {
                                         readerType = 'iframe';
                                     }
                                 }
+                            }
                             }
                             
                             // 2. 其次找 canvas（OFD 阅读器通常用 canvas）
@@ -366,46 +375,69 @@ class LawDetailActivity : AppCompatActivity() {
                             reader.style.display = 'block';
                             reader.style.border = 'none';
                             
-                            // 适配手机宽度：找到内容区域并用 transform 缩放
+                            // 适配手机宽度：如果是 iframe，直接设置全屏；否则遍历内部元素缩放
                             setTimeout(function() {
                                 try {
-                                    // 策略：遍历 reader 内所有元素，找到宽度大于屏幕的元素并缩放
-                                    var allElements = reader.querySelectorAll('*');
-                                    var scaledCount = 0;
-                                    
-                                    for (var i = 0; i < allElements.length; i++) {
-                                        var el = allElements[i];
-                                        // 只处理有实际宽度且大于屏幕宽度的元素
-                                        if (el.offsetWidth > window.innerWidth && el.offsetHeight > 50) {
-                                            // 计算缩放比例（留10px边距）
-                                            var scale = (window.innerWidth - 10) / el.offsetWidth;
-                                            
-                                            // 用 transform 缩放
-                                            el.style.transform = 'scale(' + scale + ')';
-                                            el.style.transformOrigin = 'top center';
-                                            el.style.margin = '0 auto';
-                                            el.style.display = 'block';
-                                            
-                                            // 计算缩放后的高度
-                                            var scaledHeight = el.offsetHeight * scale;
-                                            
-                                            // 给元素添加一个占位兄弟元素，撑起缩放后的高度
-                                            if (!el.nextElementSibling || !el.nextElementSibling.classList.contains('scale-placeholder')) {
-                                                var placeholder = document.createElement('div');
-                                                placeholder.className = 'scale-placeholder';
-                                                placeholder.style.height = scaledHeight + 'px';
-                                                placeholder.style.width = '100%';
-                                                placeholder.style.pointerEvents = 'none';
-                                                el.parentNode.insertBefore(placeholder, el.nextSibling);
-                                            } else {
-                                                el.nextElementSibling.style.height = scaledHeight + 'px';
+                                    if (reader.tagName === 'IFRAME') {
+                                        // iframe 是跨域的 OFD 阅读器，直接设置全屏
+                                        reader.style.width = '100%';
+                                        reader.style.height = '100vh';
+                                        reader.style.minHeight = '100vh';
+                                        reader.style.border = 'none';
+                                        reader.style.display = 'block';
+                                        reader.style.margin = '0';
+                                        reader.style.padding = '0';
+                                        
+                                        // 确保 iframe 的所有父元素也是全屏宽度
+                                        var parent = reader.parentElement;
+                                        while (parent && parent !== document.body) {
+                                            parent.style.width = '100%';
+                                            parent.style.height = '100%';
+                                            parent.style.minHeight = '100vh';
+                                            parent.style.margin = '0';
+                                            parent.style.padding = '0';
+                                            parent.style.overflow = 'hidden';
+                                            parent = parent.parentElement;
+                                        }
+                                    } else {
+                                        // 非 iframe 情况：遍历 reader 内所有元素，找到宽度大于屏幕的元素并缩放
+                                        var allElements = reader.querySelectorAll('*');
+                                        var scaledCount = 0;
+                                        
+                                        for (var i = 0; i < allElements.length; i++) {
+                                            var el = allElements[i];
+                                            // 只处理有实际宽度且大于屏幕宽度的元素
+                                            if (el.offsetWidth > window.innerWidth && el.offsetHeight > 50) {
+                                                // 计算缩放比例（留10px边距）
+                                                var scale = (window.innerWidth - 10) / el.offsetWidth;
+                                                
+                                                // 用 transform 缩放
+                                                el.style.transform = 'scale(' + scale + ')';
+                                                el.style.transformOrigin = 'top center';
+                                                el.style.margin = '0 auto';
+                                                el.style.display = 'block';
+                                                
+                                                // 计算缩放后的高度
+                                                var scaledHeight = el.offsetHeight * scale;
+                                                
+                                                // 给元素添加一个占位兄弟元素，撑起缩放后的高度
+                                                if (!el.nextElementSibling || !el.nextElementSibling.classList.contains('scale-placeholder')) {
+                                                    var placeholder = document.createElement('div');
+                                                    placeholder.className = 'scale-placeholder';
+                                                    placeholder.style.height = scaledHeight + 'px';
+                                                    placeholder.style.width = '100%';
+                                                    placeholder.style.pointerEvents = 'none';
+                                                    el.parentNode.insertBefore(placeholder, el.nextSibling);
+                                                } else {
+                                                    el.nextElementSibling.style.height = scaledHeight + 'px';
+                                                }
+                                                
+                                                scaledCount++;
                                             }
-                                            
-                                            scaledCount++;
                                         }
                                     }
                                     
-                                    // 同时确保 reader 可以滚动
+                                    // 确保 reader 可以滚动
                                     reader.style.overflow = 'auto';
                                     reader.style.webkitOverflowScrolling = 'touch';
                                     
