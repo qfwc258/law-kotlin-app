@@ -204,7 +204,9 @@ class LawDetailActivity : AppCompatActivity() {
 
         // 直接加载网站详情页
         if (lawId.isNotBlank()) {
-            val url = "${Constants.OFFICIAL_URL}detail?bbbs=$lawId"
+            // 使用正确的 URL 参数：title 和 id（不是 bbbs）
+            val encodedTitle = java.net.URLEncoder.encode(lawTitle, "UTF-8")
+            val url = "${Constants.OFFICIAL_URL}detail?title=$encodedTitle&id=$lawId"
             webView.loadUrl(url)
         } else {
             Toast.makeText(this, "无效的法规ID", Toast.LENGTH_SHORT).show()
