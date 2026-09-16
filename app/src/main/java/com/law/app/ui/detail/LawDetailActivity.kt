@@ -546,26 +546,29 @@ class LawDetailActivity : AppCompatActivity() {
                                         // 找到 iframe 的直接父容器
                                         var iframeParent = reader.parentElement;
                                         
-                                        // func-area 区域原始高度约 44px，与 iframe 同缩放后的显示高度
-                                        var funcAreaOriginalHeight = 44;
-                                        var funcAreaDisplayHeight = funcAreaOriginalHeight * scale;
+                                        // 先获取 func-area 的实际高度
+                                        var funcArea = document.querySelector('.func-area');
+                                        var funcAreaHeight = 44; // 默认高度
+                                        if (funcArea) {
+                                            funcAreaHeight = funcArea.offsetHeight || 44;
+                                        }
                                         
                                         if (iframeParent) {
-                                            // 设置父容器为全屏（减去 func-area 缩放后的高度），overflow hidden
+                                            // 设置父容器为全屏（减去 func-area 高度），overflow hidden
                                             iframeParent.style.position = 'relative';
                                             iframeParent.style.width = '100%';
-                                            iframeParent.style.height = (window.innerHeight - funcAreaDisplayHeight) + 'px';
-                                            iframeParent.style.minHeight = (window.innerHeight - funcAreaDisplayHeight) + 'px';
+                                            iframeParent.style.height = (window.innerHeight - funcAreaHeight) + 'px';
+                                            iframeParent.style.minHeight = (window.innerHeight - funcAreaHeight) + 'px';
                                             iframeParent.style.overflow = 'hidden';
                                             iframeParent.style.margin = '0';
                                             iframeParent.style.padding = '0';
-                                            iframeParent.style.marginTop = funcAreaDisplayHeight + 'px';
+                                            iframeParent.style.marginTop = funcAreaHeight + 'px';
                                         }
                                         
-                                        // 设置 iframe 原始尺寸（缩放前），高度减去 func-area 缩放后的高度
+                                        // 设置 iframe 原始尺寸（缩放前），高度减去 func-area 高度
                                         reader.style.width = originalWidth + 'px';
-                                        reader.style.height = ((window.innerHeight - funcAreaDisplayHeight) / scale) + 'px';
-                                        reader.style.minHeight = ((window.innerHeight - funcAreaDisplayHeight) / scale) + 'px';
+                                        reader.style.height = ((window.innerHeight - funcAreaHeight) / scale) + 'px';
+                                        reader.style.minHeight = ((window.innerHeight - funcAreaHeight) / scale) + 'px';
                                         reader.style.border = 'none';
                                         reader.style.display = 'block';
                                         reader.style.margin = '0';
@@ -600,27 +603,47 @@ class LawDetailActivity : AppCompatActivity() {
                                         document.documentElement.style.margin = '0';
                                         document.documentElement.style.padding = '0';
                                         
-                                        // func-area 区域与 iframe 同缩放
-                                        var funcArea = document.querySelector('.func-area');
+                                        // func-area 区域不缩放，保持原始大小便于点击
                                         if (funcArea) {
-                                            // 设置原始宽度与 iframe 一致（750px），然后同比例缩放
                                             funcArea.style.position = 'fixed';
                                             funcArea.style.top = '0';
                                             funcArea.style.left = '0';
-                                            funcArea.style.width = originalWidth + 'px';
-                                            funcArea.style.height = funcAreaOriginalHeight + 'px';
-                                            funcArea.style.transform = 'scale(' + scale + ')';
-                                            funcArea.style.transformOrigin = 'top left';
+                                            funcArea.style.right = '0';
+                                            funcArea.style.width = '100%';
                                             funcArea.style.zIndex = '1000';
                                             funcArea.style.background = '#fff';
                                             funcArea.style.boxSizing = 'border-box';
-                                            funcArea.style.padding = '8px 12px';
                                             funcArea.style.borderBottom = '1px solid #eee';
-                                            funcArea.style.margin = '0';
-                                            funcArea.style.display = 'flex';
-                                            funcArea.style.alignItems = 'center';
-                                            funcArea.style.justifyContent = 'space-between';
                                         }
+                                        
+                                        // 定期检查并显示下载弹出框（Element UI dropdown）
+                                        setInterval(function() {
+                                            try {
+                                                var popups = document.querySelectorAll('.el-tooltip__popper, [class*="dropdown"], [class*="popover"], [class*="el-popper"]');
+                                                for (var i = 0; i < popups.length; i++) {
+                                                    var popup = popups[i];
+                                                    // 只显示包含"下载"或"WPS"或"公报"文字的弹出框
+                                                    var popupText = (popup.textContent || '').trim();
+                                                    if (popupText.indexOf('下载') >= 0 || popupText.indexOf('WPS') >= 0 || popupText.indexOf('公报') >= 0) {
+                                                        popup.style.display = 'block';
+                                                        popup.style.visibility = 'visible';
+                                                        popup.style.opacity = '1';
+                                                        popup.style.zIndex = '9999';
+                                                        // 确保弹出框在视口内
+                                                        var popupRect = popup.getBoundingClientRect();
+                                                        if (popupRect.top < 0) {
+                                                            popup.style.top = funcAreaHeight + 'px';
+                                                        }
+                                                        if (popupRect.left < 0) {
+                                                            popup.style.left = '10px';
+                                                        }
+                                                        if (popupRect.right > window.innerWidth) {
+                                                            popup.style.left = (window.innerWidth - popupRect.width - 10) + 'px';
+                                                        }
+                                                    }
+                                                }
+                                            } catch(e) {}
+                                        }, 500);
                                     } else {
                                         // 非 iframe 情况：遍历 reader 内所有元素，找到宽度大于屏幕的元素并缩放
                                         var allElements = reader.querySelectorAll('*');
