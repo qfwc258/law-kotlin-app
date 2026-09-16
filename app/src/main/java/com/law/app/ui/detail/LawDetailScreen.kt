@@ -235,7 +235,7 @@ fun LawDetailScreen(
 
                         // 目录树展示（新版 API 只返回目录，正文需下载 PDF）
                         if (law.contentTreeJson != null) {
-                            val catalogItems = rememberCatalogItems(law.contentTreeJson)
+                            val catalogItems = parseCatalogItems(law.contentTreeJson)
                             items(catalogItems, key = { it.title + it.depth }) { item ->
                                 CatalogItem(node = item)
                             }
@@ -347,27 +347,24 @@ private data class CatalogItemData(
 )
 
 /**
- * 从目录树 JSON 解析出扁平化的目录列表
+ * 从目录树 JSON 解析出扁平化的目录列表（普通函数，非 @Composable）
  */
-@Composable
-private fun rememberCatalogItems(json: String): List<CatalogItemData> {
-    return remember(json) {
-        try {
-            val gson = com.google.gson.Gson()
-            val root = gson.fromJson(json, com.law.app.data.remote.dto.ContentNode::class.java)
-            val result = mutableListOf<CatalogItemData>()
-            fun traverse(node: com.law.app.data.remote.dto.ContentNode, depth: Int) {
-                if (depth > 0) { // 跳过根节点
-                    val isArticle = node.title?.startsWith("第") == true && node.title.contains("条")
-                    result.add(CatalogItemData(node.title ?: "", depth, isArticle))
-                }
-                node.children?.forEach { traverse(it, depth + 1) }
+private fun parseCatalogItems(json: String): List<CatalogItemData> {
+    return try {
+        val gson = com.google.gson.Gson()
+        val root = gson.fromJson(json, com.law.app.data.remote.dto.ContentNode::class.java)
+        val result = mutableListOf<CatalogItemData>()
+        fun traverse(node: com.law.app.data.remote.dto.ContentNode, depth: Int) {
+            if (depth > 0) { // 跳过根节点
+                val isArticle = node.title?.startsWith("第") == true && node.title.contains("条")
+                result.add(CatalogItemData(node.title ?: "", depth, isArticle))
             }
-            traverse(root, 0)
-            result
-        } catch (e: Exception) {
-            emptyList()
+            node.children?.forEach { traverse(it, depth + 1) }
         }
+        traverse(root, 0)
+        result
+    } catch (e: Exception) {
+        emptyList()
     }
 }
 
@@ -381,7 +378,9 @@ private fun CatalogItem(node: CatalogItemData) {
             .fillMaxWidth()
             .padding(
                 start = (8.dp * node.depth).coerceAtMost(48.dp),
-                vertical = if (node.isArticle) 4.dp else 8.dp
+                top = if (node.isArticle) 4.dp else 8.dp,
+                end = 0.dp,
+                bottom = if (node.isArticle) 4.dp else 8.dp
             ),
         verticalAlignment = Alignment.CenterVertically
     ) {

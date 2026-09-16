@@ -60,7 +60,7 @@ class LawRepository(
         return try {
             val request = LawSearchRequest(
                 searchRange = 1, // 1=全部范围
-                searchType = if (searchMode == SearchMode.EXACT) 1 else 2, // 1=精确, 2=模糊
+                searchType = if (searchMode == SearchMode.ACCURATE) 1 else 2, // 1=精确, 2=模糊
                 searchContent = keyword,
                 pageNum = page,
                 pageSize = size
