@@ -96,6 +96,10 @@ class LawDetailActivity : AppCompatActivity() {
                 cacheMode = WebSettings.LOAD_DEFAULT
                 userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
             }
+            
+            // 设置初始缩放比例，让 OFD 阅读器内容适配手机宽度
+            // OFD 内容固定宽度约 800-1000px，手机屏幕约 360-412px，需要缩放约 40-50%
+            setInitialScale(45)
 
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
