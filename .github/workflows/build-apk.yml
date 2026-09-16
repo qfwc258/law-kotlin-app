@@ -103,12 +103,8 @@ jobs:
             
             # 提交并推送（使用 [skip ci] 避免无限循环）
             git add -f "release/$APK_NAME"
-            git commit -m "ci: 自动提交APK到release目录 [skip ci]
-
-            APK: $APK_NAME
-            版本: $VERSION_NAME
-            日期: $DATE
-            构建: ${{ github.run_number }}" || echo "No changes to commit"
+            COMMIT_MSG="ci: 自动提交APK到release目录 [skip ci] | APK: $APK_NAME | 版本: $VERSION_NAME | 日期: $DATE | 构建: ${{ github.run_number }}"
+            git commit -m "$COMMIT_MSG" || echo "No changes to commit"
             
             # 推送到当前分支
             CURRENT_BRANCH="${{ github.ref_name }}"
