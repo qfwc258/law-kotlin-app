@@ -55,12 +55,6 @@ class LawDetailActivity : AppCompatActivity() {
             setDisplayShowHomeEnabled(true)
         }
 
-        // 启用 Cookie
-        CookieManager.getInstance().apply {
-            setAcceptCookie(true)
-            setAcceptThirdPartyCookies(webView, true)
-        }
-
         // 创建根布局
         val rootLayout = FrameLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(
@@ -101,6 +95,12 @@ class LawDetailActivity : AppCompatActivity() {
                 textZoom = 100
                 cacheMode = WebSettings.LOAD_DEFAULT
                 userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
+            }
+
+            // 启用 Cookie（webView 已初始化后调用）
+            CookieManager.getInstance().apply {
+                setAcceptCookie(true)
+                setAcceptThirdPartyCookies(this@apply, true)
             }
 
             webViewClient = object : WebViewClient() {
