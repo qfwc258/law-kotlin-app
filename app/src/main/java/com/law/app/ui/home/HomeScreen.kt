@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -163,17 +160,27 @@ fun HomeScreen(
                                     icon = Icons.Default.Gavel
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
-                                LazyVerticalGrid(
-                                    columns = GridCells.Fixed(2),
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                // 使用 Column + Row 布局，避免 LazyColumn 嵌套 LazyVerticalGrid 的测量冲突
+                                Column(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    items(uiState.categories) { category ->
-                                        CategoryCard(
-                                            category = category,
-                                            onClick = { onCategoryClick(category) }
-                                        )
+                                    uiState.categories.chunked(2).forEach { rowCategories ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            rowCategories.forEach { category ->
+                                                CategoryCard(
+                                                    category = category,
+                                                    onClick = { onCategoryClick(category) },
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                            }
+                                            // 如果只有一个分类，填充空白
+                                            if (rowCategories.size == 1) {
+                                                Spacer(modifier = Modifier.weight(1f))
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -273,7 +280,8 @@ private fun SectionTitle(title: String, icon: androidx.compose.ui.graphics.vecto
 @Composable
 private fun CategoryCard(
     category: LawCategory,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val colors = listOf(
         Color(0xFFE3F2FD), // 蓝
@@ -287,7 +295,7 @@ private fun CategoryCard(
     val bgColor = colors[colorIndex]
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
