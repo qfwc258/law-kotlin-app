@@ -141,6 +141,16 @@ class LawDetailActivity : AppCompatActivity() {
                 mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                 textZoom = 100
                 cacheMode = WebSettings.LOAD_DEFAULT
+                // 启用文件访问
+                allowFileAccess = true
+                allowContentAccess = true
+                // 允许 JavaScript 打开窗口
+                javaScriptCanOpenWindowsAutomatically = true
+                // 启用定位
+                setGeolocationEnabled(true)
+                // 启用表单数据保存
+                saveFormData = true
+                // User-Agent 模拟最新版 Edge 浏览器
                 userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36 EdgA/129.0.0.0"
             }
 
@@ -179,45 +189,81 @@ class LawDetailActivity : AppCompatActivity() {
                         supportActionBar?.title = title
                     }
                 }
+
+                // 处理文件选择（下载功能可能需要）
+                override fun onShowFileChooser(
+                    webView: WebView?,
+                    filePathCallback: android.webkit.ValueCallback<Array<android.net.Uri>>?,
+                    fileChooserParams: FileChooserParams?
+                ): Boolean {
+                    // 下载功能通常不需要文件选择，但确保不阻塞
+                    filePathCallback?.onReceiveValue(null)
+                    return true
+                }
+
+                // 处理 JavaScript 对话框
+                override fun onJsAlert(
+                    view: WebView?,
+                    url: String?,
+                    message: String?,
+                    result: android.webkit.JsResult?
+                ): Boolean {
+                    result?.confirm()
+                    return true
+                }
+
+                override fun onJsConfirm(
+                    view: WebView?,
+                    url: String?,
+                    message: String?,
+                    result: android.webkit.JsResult?
+                ): Boolean {
+                    result?.confirm()
+                    return true
+                }
             }
 
             // 下载拦截
             setDownloadListener(DownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
                 try {
+                    // 从 contentDisposition 中提取文件名
+                    var fileName = "$lawTitle.docx"
+                    if (contentDisposition != null && contentDisposition.contains("filename")) {
+                        val match = Regex("filename\\*?=([^;]+)").find(contentDisposition)
+                        if (match != null) {
+                            var name = match.groupValues[1].trim().removeSurrounding("\"")
+                            if (name.startsWith("UTF-8''")) {
+                                name = java.net.URLDecoder.decode(name.removePrefix("UTF-8''"), "UTF-8")
+                            }
+                            fileName = name
+                        }
+                    }
+
                     // 检测是否是 blob URL
                     if (url.startsWith("blob:")) {
-                        // blob URL 需要通过 JavaScript 转换成 base64 再下载
-                        // 从 contentDisposition 中提取文件名
-                        var fileName = "$lawTitle.docx"
-                        if (contentDisposition != null && contentDisposition.contains("filename")) {
-                            val match = Regex("filename\\*?=([^;]+)").find(contentDisposition)
-                            if (match != null) {
-                                var name = match.groupValues[1].trim().removeSurrounding("\"")
-                                // 处理 URL 编码的文件名
-                                if (name.startsWith("UTF-8''")) {
-                                    name = java.net.URLDecoder.decode(name.removePrefix("UTF-8''"), "UTF-8")
-                                }
-                                fileName = name
-                            }
-                        }
-
-                        // 通过 JavaScript 把 blob 转换成 base64
+                        // blob URL：通过 JavaScript 把 blob 转换成 base64 再下载
                         val jsCode = """
                             (function() {
                                 try {
-                                    fetch('$url')
-                                        .then(response => response.blob())
-                                        .then(blob => {
+                                    var xhr = new XMLHttpRequest();
+                                    xhr.open('GET', '$url', true);
+                                    xhr.responseType = 'blob';
+                                    xhr.onload = function() {
+                                        if (xhr.status === 200) {
                                             var reader = new FileReader();
                                             reader.onloadend = function() {
                                                 var base64 = reader.result.split(',')[1];
                                                 BlobDownloader.onBlobData(base64, '$fileName', '$mimeType');
                                             };
-                                            reader.readAsDataURL(blob);
-                                        })
-                                        .catch(err => {
-                                            console.error('Blob download error:', err);
-                                        });
+                                            reader.readAsDataURL(xhr.response);
+                                        } else {
+                                            console.error('Blob download failed, status:', xhr.status);
+                                        }
+                                    };
+                                    xhr.onerror = function() {
+                                        console.error('Blob download error');
+                                    };
+                                    xhr.send();
                                 } catch(e) {
                                     console.error('Blob download exception:', e);
                                 }
@@ -230,15 +276,36 @@ class LawDetailActivity : AppCompatActivity() {
 
                         Toast.makeText(this@LawDetailActivity, "开始下载…", Toast.LENGTH_SHORT).show()
                     } else {
-                        // 普通 HTTP/HTTPS URL，直接用 DownloadManager 下载
+                        // 普通 HTTP/HTTPS URL，用 DownloadManager 下载，携带必要请求头
                         val request = DownloadManager.Request(Uri.parse(url))
                         request.setMimeType(mimeType)
                         request.setTitle("法规文件下载")
-                        request.setDescription("正在下载…")
+                        request.setDescription(fileName)
                         request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                        
+                        // 携带 Cookie
+                        val cookie = CookieManager.getInstance().getCookie(url)
+                        if (cookie != null && cookie.isNotEmpty()) {
+                            request.addRequestHeader("Cookie", cookie)
+                        }
+                        // 携带 Referer
+                        request.addRequestHeader("Referer", "https://flk.npc.gov.cn/")
+                        // 携带 User-Agent
+                        request.addRequestHeader("User-Agent", webView.settings.userAgentString)
+                        
+                        // 确定文件扩展名
+                        val ext = when {
+                            mimeType.contains("pdf") -> "pdf"
+                            mimeType.contains("ofd") -> "ofd"
+                            url.contains(".docx") -> "docx"
+                            url.contains(".doc") -> "doc"
+                            else -> "docx"
+                        }
+                        val saveName = if (fileName.contains(".")) fileName else "$fileName.$ext"
+                        
                         request.setDestinationInExternalPublicDir(
                             Environment.DIRECTORY_DOWNLOADS,
-                            "法律宝典/${lawTitle}.${if (mimeType.contains("pdf")) "pdf" else "docx"}"
+                            "法律宝典/$saveName"
                         )
                         val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
                         dm.enqueue(request)
@@ -546,29 +613,26 @@ class LawDetailActivity : AppCompatActivity() {
                                         // 找到 iframe 的直接父容器
                                         var iframeParent = reader.parentElement;
                                         
-                                        // 先获取 func-area 的实际高度
-                                        var funcArea = document.querySelector('.func-area');
-                                        var funcAreaHeight = 44; // 默认高度
-                                        if (funcArea) {
-                                            funcAreaHeight = funcArea.offsetHeight || 44;
-                                        }
+                                        // func-area 原始高度约 44px，与 iframe 同缩放后的显示高度
+                                        var funcAreaOriginalHeight = 44;
+                                        var funcAreaDisplayHeight = funcAreaOriginalHeight * scale;
                                         
                                         if (iframeParent) {
-                                            // 设置父容器为全屏（减去 func-area 高度），overflow hidden
+                                            // 设置父容器为全屏（减去 func-area 缩放后的高度），overflow hidden
                                             iframeParent.style.position = 'relative';
                                             iframeParent.style.width = '100%';
-                                            iframeParent.style.height = (window.innerHeight - funcAreaHeight) + 'px';
-                                            iframeParent.style.minHeight = (window.innerHeight - funcAreaHeight) + 'px';
+                                            iframeParent.style.height = (window.innerHeight - funcAreaDisplayHeight) + 'px';
+                                            iframeParent.style.minHeight = (window.innerHeight - funcAreaDisplayHeight) + 'px';
                                             iframeParent.style.overflow = 'hidden';
                                             iframeParent.style.margin = '0';
                                             iframeParent.style.padding = '0';
-                                            iframeParent.style.marginTop = funcAreaHeight + 'px';
+                                            iframeParent.style.marginTop = funcAreaDisplayHeight + 'px';
                                         }
                                         
-                                        // 设置 iframe 原始尺寸（缩放前），高度减去 func-area 高度
+                                        // 设置 iframe 原始尺寸（缩放前），高度减去 func-area 缩放后的高度
                                         reader.style.width = originalWidth + 'px';
-                                        reader.style.height = ((window.innerHeight - funcAreaHeight) / scale) + 'px';
-                                        reader.style.minHeight = ((window.innerHeight - funcAreaHeight) / scale) + 'px';
+                                        reader.style.height = ((window.innerHeight - funcAreaDisplayHeight) / scale) + 'px';
+                                        reader.style.minHeight = ((window.innerHeight - funcAreaDisplayHeight) / scale) + 'px';
                                         reader.style.border = 'none';
                                         reader.style.display = 'block';
                                         reader.style.margin = '0';
@@ -603,17 +667,25 @@ class LawDetailActivity : AppCompatActivity() {
                                         document.documentElement.style.margin = '0';
                                         document.documentElement.style.padding = '0';
                                         
-                                        // func-area 区域不缩放，保持原始大小便于点击
+                                        // func-area 区域与 iframe 同缩放
+                                        var funcArea = document.querySelector('.func-area');
                                         if (funcArea) {
                                             funcArea.style.position = 'fixed';
                                             funcArea.style.top = '0';
                                             funcArea.style.left = '0';
-                                            funcArea.style.right = '0';
-                                            funcArea.style.width = '100%';
+                                            funcArea.style.width = originalWidth + 'px';
+                                            funcArea.style.height = funcAreaOriginalHeight + 'px';
+                                            funcArea.style.transform = 'scale(' + scale + ')';
+                                            funcArea.style.transformOrigin = 'top left';
                                             funcArea.style.zIndex = '1000';
                                             funcArea.style.background = '#fff';
                                             funcArea.style.boxSizing = 'border-box';
+                                            funcArea.style.padding = '8px 12px';
                                             funcArea.style.borderBottom = '1px solid #eee';
+                                            funcArea.style.margin = '0';
+                                            funcArea.style.display = 'flex';
+                                            funcArea.style.alignItems = 'center';
+                                            funcArea.style.justifyContent = 'space-between';
                                         }
                                         
                                         // 记录当前 iframe 的 src，用于检测变化
@@ -780,7 +852,8 @@ class LawDetailActivity : AppCompatActivity() {
 
     // 不显示 ActionBar 菜单，用户直接点击网页上的下载按钮
     override fun onCreateOptionsMenu(menu: android.view.Menu?): Boolean {
-        return false
+        menuInflater.inflate(R.menu.menu_detail, menu)
+        return true
     }
 
     /**
@@ -889,6 +962,10 @@ class LawDetailActivity : AppCompatActivity() {
         return when (item.itemId) {
             android.R.id.home -> {
                 onBackPressed()
+                true
+            }
+            R.id.action_download -> {
+                triggerDownload()
                 true
             }
             else -> super.onOptionsItemSelected(item)
