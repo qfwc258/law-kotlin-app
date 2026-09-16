@@ -97,12 +97,6 @@ class LawDetailActivity : AppCompatActivity() {
                 userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
             }
 
-            // 启用 Cookie（webView 已初始化后调用）
-            CookieManager.getInstance().apply {
-                setAcceptCookie(true)
-                setAcceptThirdPartyCookies(this@apply, true)
-            }
-
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     progressBar.visibility = View.VISIBLE
@@ -153,6 +147,12 @@ class LawDetailActivity : AppCompatActivity() {
                     Toast.makeText(this@LawDetailActivity, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             })
+        }
+
+        // 启用 Cookie（webView 已初始化后调用）
+        CookieManager.getInstance().apply {
+            setAcceptCookie(true)
+            setAcceptThirdPartyCookies(webView, true)
         }
 
         // 加载中提示
