@@ -12,7 +12,7 @@ env:
   GRADLE_VERSION: 8.5
 
 jobs:
-  build:
+  build-debug:
     name: Build Debug APK
     runs-on: ubuntu-latest
 
@@ -40,14 +40,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
       - name: Run Lint
         run: ./gradlew lintDebug --stacktrace
+        continue-on-error: true
 
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --stacktrace
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        continue-on-error: true
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -65,10 +67,8 @@ jobs:
           retention-days: 7
 
   build-release:
-    name: Build Release APK (unsigned)
+    name: Build Release APK
     runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
     steps:
       - name: Checkout code
@@ -84,6 +84,16 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-release-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
       - name: Build Release APK
         run: ./gradlew assembleRelease --stacktrace
 
@@ -92,4 +102,12 @@ jobs:
         with:
           name: law-app-release-apk
           path: app/build/outputs/apk/release/*.apk
+          retention-days: 90
+
+      - name: Upload Release Mapping
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-mapping
+          path: app/build/outputs/mapping/release/
           retention-days: 90

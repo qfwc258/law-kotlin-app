@@ -27,6 +27,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,7 +50,7 @@ fun SearchScreen(
     onLawClick: (String) -> Unit,
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory)
 ) {
-    val uiState by viewModel.uiState
+    val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
 
     // 滚动到底部加载更多
