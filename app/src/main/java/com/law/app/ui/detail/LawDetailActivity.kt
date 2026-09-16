@@ -469,7 +469,7 @@ class LawDetailActivity : AppCompatActivity() {
                             }
                             
                             // 从 body 开始，只保留路径上的元素，隐藏其他兄弟元素
-                            // 但保留下载按键（class 包含 "download" 的元素）
+                            // 但保留 func-area 区域（包含下载按钮和 WPS版本/公报原版标签），用户直接点击下载
                             function keepOnlyPath(parent, pathIndex) {
                                 if (pathIndex >= path.length) return;
                                 var target = path[pathIndex];
@@ -479,8 +479,27 @@ class LawDetailActivity : AppCompatActivity() {
                                     if (child === target) {
                                         keepOnlyPath(child, pathIndex + 1);
                                     } else {
-                                        // 隐藏所有非路径上的元素（包括原网页的下载按钮，因为我们用 ActionBar 的下载按钮）
-                                        child.style.display = 'none';
+                                        // 检查是否是 func-area 区域或包含 func-area
+                                        var childClass = child.className || '';
+                                        var isFuncArea = typeof childClass === 'string' && childClass.indexOf('func-area') >= 0;
+                                        var hasFuncArea = child.querySelector && child.querySelector('.func-area');
+                                        
+                                        if (isFuncArea || hasFuncArea) {
+                                            // 保留 func-area 区域，调整样式适配手机
+                                            child.style.display = 'block';
+                                            child.style.position = 'relative';
+                                            child.style.width = '100%';
+                                            child.style.maxWidth = '100%';
+                                            child.style.margin = '0';
+                                            child.style.padding = '8px 12px';
+                                            child.style.boxSizing = 'border-box';
+                                            child.style.background = '#fff';
+                                            child.style.borderBottom = '1px solid #eee';
+                                            child.style.zIndex = '100';
+                                        } else {
+                                            // 隐藏其他非路径上的元素
+                                            child.style.display = 'none';
+                                        }
                                     }
                                 }
                             }
@@ -527,21 +546,25 @@ class LawDetailActivity : AppCompatActivity() {
                                         // 找到 iframe 的直接父容器
                                         var iframeParent = reader.parentElement;
                                         
+                                        // func-area 区域高度约 44px，给它留出顶部空间
+                                        var funcAreaHeight = 44;
+                                        
                                         if (iframeParent) {
-                                            // 设置父容器为全屏，overflow hidden
+                                            // 设置父容器为全屏（减去 func-area 高度），overflow hidden
                                             iframeParent.style.position = 'relative';
                                             iframeParent.style.width = '100%';
-                                            iframeParent.style.height = '100vh';
-                                            iframeParent.style.minHeight = '100vh';
+                                            iframeParent.style.height = (window.innerHeight - funcAreaHeight) + 'px';
+                                            iframeParent.style.minHeight = (window.innerHeight - funcAreaHeight) + 'px';
                                             iframeParent.style.overflow = 'hidden';
                                             iframeParent.style.margin = '0';
                                             iframeParent.style.padding = '0';
+                                            iframeParent.style.marginTop = funcAreaHeight + 'px';
                                         }
                                         
-                                        // 设置 iframe 原始尺寸（缩放前）
+                                        // 设置 iframe 原始尺寸（缩放前），高度减去 func-area 高度
                                         reader.style.width = originalWidth + 'px';
-                                        reader.style.height = (window.innerHeight / scale) + 'px';
-                                        reader.style.minHeight = (window.innerHeight / scale) + 'px';
+                                        reader.style.height = ((window.innerHeight - funcAreaHeight) / scale) + 'px';
+                                        reader.style.minHeight = ((window.innerHeight - funcAreaHeight) / scale) + 'px';
                                         reader.style.border = 'none';
                                         reader.style.display = 'block';
                                         reader.style.margin = '0';
@@ -563,14 +586,29 @@ class LawDetailActivity : AppCompatActivity() {
                                             ancestor = ancestor.parentElement;
                                         }
                                         
-                                        // 设置 body 和 html 为全屏
+                                        // 设置 body 和 html 为全屏，但允许 func-area 区域显示在顶部
                                         document.body.style.width = '100%';
                                         document.body.style.height = '100%';
                                         document.body.style.minHeight = '100vh';
                                         document.body.style.overflow = 'hidden';
+                                        document.body.style.margin = '0';
+                                        document.body.style.padding = '0';
                                         document.documentElement.style.width = '100%';
                                         document.documentElement.style.height = '100%';
                                         document.documentElement.style.overflow = 'hidden';
+                                        document.documentElement.style.margin = '0';
+                                        document.documentElement.style.padding = '0';
+                                        
+                                        // 确保 func-area 区域固定在顶部
+                                        var funcArea = document.querySelector('.func-area');
+                                        if (funcArea) {
+                                            funcArea.style.position = 'fixed';
+                                            funcArea.style.top = '0';
+                                            funcArea.style.left = '0';
+                                            funcArea.style.right = '0';
+                                            funcArea.style.zIndex = '1000';
+                                            funcArea.style.background = '#fff';
+                                        }
                                     } else {
                                         // 非 iframe 情况：遍历 reader 内所有元素，找到宽度大于屏幕的元素并缩放
                                         var allElements = reader.querySelectorAll('*');
@@ -651,9 +689,9 @@ class LawDetailActivity : AppCompatActivity() {
         view.evaluateJavascript(js, null)
     }
 
+    // 不显示 ActionBar 菜单，用户直接点击网页上的下载按钮
     override fun onCreateOptionsMenu(menu: android.view.Menu?): Boolean {
-        menuInflater.inflate(R.menu.menu_detail, menu)
-        return true
+        return false
     }
 
     /**
@@ -762,10 +800,6 @@ class LawDetailActivity : AppCompatActivity() {
         return when (item.itemId) {
             android.R.id.home -> {
                 onBackPressed()
-                true
-            }
-            R.id.action_download -> {
-                triggerDownload()
                 true
             }
             else -> super.onOptionsItemSelected(item)
