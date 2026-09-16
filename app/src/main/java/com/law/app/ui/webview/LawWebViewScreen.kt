@@ -75,7 +75,7 @@ fun LawWebViewScreen(
                         mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                         cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
                         // 移动端 User-Agent
-                        userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36 LawApp/1.0"
+                        userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36 EdgA/129.0.0.0 LawApp/1.0"
                     }
 
                     // WebViewClient：处理页面加载和导航

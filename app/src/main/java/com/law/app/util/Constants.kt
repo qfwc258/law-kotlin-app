@@ -10,8 +10,8 @@ object Constants {
     /** 官网首页 */
     const val OFFICIAL_URL = "https://flk.npc.gov.cn/"
 
-    /** User-Agent（模拟浏览器，避免被拦截） */
-    const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
+    /** User-Agent（模拟 Edge 129 浏览器，避免被拦截和下载限制） */
+    const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36 EdgA/129.0.0.0"
 
     /** Referer（新版 API 需要校验来源） */
     const val REFERER = "https://flk.npc.gov.cn/"
