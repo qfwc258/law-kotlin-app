@@ -8,6 +8,7 @@ import com.law.app.data.model.SearchMode
 import com.law.app.data.model.SortOrder
 import com.law.app.data.remote.NetworkModule
 import com.law.app.data.remote.dto.LawDetailResponse
+import com.law.app.data.remote.dto.LawDetailData
 import com.law.app.data.remote.dto.LawRecordDto
 import com.law.app.data.remote.dto.LawSearchResponse
 import com.law.app.util.Constants
@@ -175,7 +176,7 @@ private fun LawRecordDto.toDomain(): Law = Law(
     detailUrl = detailUrl
 )
 
-private fun LawDetailResponse.LawDetailData.toDomain(): Law = Law(
+private fun LawDetailData.toDomain(): Law = Law(
     id = id ?: "",
     title = title ?: "",
     type = LawType.fromCode(type ?: ""),
