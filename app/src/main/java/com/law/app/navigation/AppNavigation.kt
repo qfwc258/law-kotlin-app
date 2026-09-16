@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -24,7 +23,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.law.app.ui.detail.LawDetailActivity
-import com.law.app.ui.favorites.FavoritesScreen
 import com.law.app.ui.home.HomeScreen
 import com.law.app.ui.search.SearchScreen
 
@@ -38,7 +36,6 @@ sealed class BottomNavItem(
 ) {
     data object Home : BottomNavItem("home", "首页", Icons.Default.Book)
     data object Search : BottomNavItem("search", "搜索", Icons.Default.Search)
-    data object Favorites : BottomNavItem("favorites", "收藏", Icons.Default.Favorite)
 }
 
 /**
@@ -50,8 +47,7 @@ fun AppNavigation() {
     val context: Context = LocalContext.current
     val bottomItems = listOf(
         BottomNavItem.Home,
-        BottomNavItem.Search,
-        BottomNavItem.Favorites
+        BottomNavItem.Search
     )
 
     Scaffold(
@@ -91,7 +87,6 @@ fun AppNavigation() {
                     onLawClick = { lawId, title -> LawDetailActivity.start(context, lawId, title) },
                     onSearchClick = { navController.navigate(BottomNavItem.Search.route) },
                     onCategoryClick = { category ->
-                        // 点击大类跳转到搜索页，搜索该大类关键词
                         navController.navigate("search?keyword=${category.name}")
                     }
                 )
@@ -109,11 +104,6 @@ fun AppNavigation() {
                 SearchScreen(
                     onLawClick = { lawId, title -> LawDetailActivity.start(context, lawId, title) },
                     initialKeyword = keyword
-                )
-            }
-            composable(BottomNavItem.Favorites.route) {
-                FavoritesScreen(
-                    onLawClick = { lawId, title -> LawDetailActivity.start(context, lawId, title) }
                 )
             }
         }

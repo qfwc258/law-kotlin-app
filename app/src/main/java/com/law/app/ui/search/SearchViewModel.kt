@@ -55,7 +55,7 @@ class SearchViewModel(
             return
         }
         searchJob = viewModelScope.launch {
-            delay(300) // 防抖
+            delay(200) // 防抖
             performSearch(page = 1)
         }
     }

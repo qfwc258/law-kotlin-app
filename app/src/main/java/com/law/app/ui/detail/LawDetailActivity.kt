@@ -7,31 +7,43 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
+import android.view.Gravity
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.DownloadListener
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.law.app.data.parser.LawWebParser
 import com.law.app.util.Constants
+import com.law.app.util.Result
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 法规详情页 - 传统 Activity + WebView 实现
  *
- * 直接加载国家法律法规数据库详情页，
- * 网站会自动加载 OFD 阅读器渲染 PDF 内容。
+ * 用 TVBox 模式获取 OFD 阅读器 URL，然后用 WebView 加载。
  */
 class LawDetailActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var progressBar: ProgressBar
+    private lateinit var loadingText: TextView
+    private lateinit var loadingContainer: FrameLayout
     private var lawId: String = ""
     private var lawTitle: String = "法规详情"
+    private val scope = CoroutineScope(Dispatchers.Main)
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,31 +60,31 @@ class LawDetailActivity : AppCompatActivity() {
             setDisplayShowHomeEnabled(true)
         }
 
-        // 创建布局
-        val rootLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
+        // 创建根布局
+        val rootLayout = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
             )
         }
 
-        // 进度条
+        // 进度条（顶部）
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                12
+            ).apply {
+                gravity = Gravity.TOP
+            }
             max = 100
             visibility = View.GONE
         }
 
         // 创建 WebView
         webView = WebView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
             )
             settings.apply {
                 javaScriptEnabled = true
@@ -92,6 +104,7 @@ class LawDetailActivity : AppCompatActivity() {
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     progressBar.visibility = View.VISIBLE
+                    loadingContainer.visibility = View.GONE
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -109,13 +122,6 @@ class LawDetailActivity : AppCompatActivity() {
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                     progressBar.progress = newProgress
-                }
-
-                override fun onReceivedTitle(view: WebView?, title: String?) {
-                    super.onReceivedTitle(view, title)
-                    if (!title.isNullOrBlank() && title != "about:blank") {
-                        supportActionBar?.title = title
-                    }
                 }
             }
 
@@ -140,17 +146,123 @@ class LawDetailActivity : AppCompatActivity() {
             })
         }
 
-        rootLayout.addView(progressBar)
+        // 加载中提示
+        loadingContainer = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            setBackgroundColor(android.graphics.Color.WHITE)
+        }
+
+        val loadingInner = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val loadingCircle = ProgressBar(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                80,
+                80
+            )
+        }
+
+        loadingText = TextView(this).apply {
+            text = "正在加载法规详情…"
+            textSize = 16f
+            setTextColor(android.graphics.Color.parseColor("#666666"))
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 24
+            }
+        }
+
+        loadingInner.addView(loadingCircle)
+        loadingInner.addView(loadingText)
+        loadingContainer.addView(loadingInner)
+
         rootLayout.addView(webView)
+        rootLayout.addView(progressBar)
+        rootLayout.addView(loadingContainer)
         setContentView(rootLayout)
 
-        // 加载详情页
+        // 加载详情
         if (lawId.isNotBlank()) {
-            val url = "${Constants.OFFICIAL_URL}detail?bbbs=$lawId"
-            webView.loadUrl(url)
+            loadDetail()
         } else {
             Toast.makeText(this, "无效的法规ID", Toast.LENGTH_SHORT).show()
             finish()
+        }
+    }
+
+    /**
+     * 用 TVBox 模式获取 OFD 阅读器 URL，然后加载
+     */
+    private fun loadDetail() {
+        scope.launch {
+            try {
+                loadingText.text = "正在获取详情数据…"
+
+                // 用 LawWebParser 获取详情
+                val parser = LawWebParser.getInstance(this@LawDetailActivity)
+                val detailResult = withContext(Dispatchers.IO) {
+                    parser.getLawDetail(lawId)
+                }
+
+                when (detailResult) {
+                    is Result.Success -> {
+                        val law = detailResult.data
+                        lawTitle = law.title
+                        supportActionBar?.title = lawTitle
+
+                        // 获取 OFD 阅读器 URL
+                        val ossPdfPath = law.ossPdfPath
+                        if (!ossPdfPath.isNullOrEmpty()) {
+                            loadingText.text = "正在获取预览链接…"
+                            val previewResult = withContext(Dispatchers.IO) {
+                                parser.getPreviewUrl(ossPdfPath)
+                            }
+                            when (previewResult) {
+                                is Result.Success -> {
+                                    // 加载 OFD 阅读器
+                                    webView.loadUrl(previewResult.data)
+                                }
+                                is Result.Error -> {
+                                    // 获取预览链接失败，加载网站详情页作为兜底
+                                    loadingText.text = "预览链接获取失败，加载网页版…"
+                                    val fallbackUrl = "${Constants.OFFICIAL_URL}detail?bbbs=$lawId"
+                                    webView.loadUrl(fallbackUrl)
+                                }
+                                is Result.Loading -> {}
+                            }
+                        } else {
+                            // 没有 PDF 路径，加载网站详情页
+                            loadingText.text = "正在加载网页版…"
+                            val fallbackUrl = "${Constants.OFFICIAL_URL}detail?bbbs=$lawId"
+                            webView.loadUrl(fallbackUrl)
+                        }
+                    }
+                    is Result.Error -> {
+                        // 获取详情失败，加载网站详情页作为兜底
+                        loadingText.text = "详情获取失败，加载网页版…"
+                        val fallbackUrl = "${Constants.OFFICIAL_URL}detail?bbbs=$lawId"
+                        webView.loadUrl(fallbackUrl)
+                    }
+                    is Result.Loading -> {}
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@LawDetailActivity, "加载失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                // 兜底：加载网站详情页
+                val fallbackUrl = "${Constants.OFFICIAL_URL}detail?bbbs=$lawId"
+                webView.loadUrl(fallbackUrl)
+            }
         }
     }
 
