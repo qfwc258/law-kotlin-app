@@ -366,66 +366,92 @@ class LawDetailActivity : AppCompatActivity() {
                             reader.style.display = 'block';
                             reader.style.border = 'none';
                             
-                            // 适配手机宽度：找到内容区域并缩放
+                            // 适配手机宽度：找到内容区域并用 transform 缩放
                             setTimeout(function() {
                                 try {
-                                    // 找到 reader 内的内容容器（可能是 canvas、iframe 或固定宽度的 div）
+                                    // 找到 reader 内所有可能的内容容器
+                                    // 策略：找包含法规文字且宽度大于屏幕宽度的元素
+                                    var allDivs = reader.querySelectorAll('div, section, article');
+                                    var candidates = [];
+                                    
+                                    for (var i = 0; i < allDivs.length; i++) {
+                                        var el = allDivs[i];
+                                        var text = el.textContent || '';
+                                        // 检查是否包含法规特征文字
+                                        var hasLawText = /第[一二三四五六七八九十百千0-9]+[条章节篇编]/.test(text) || 
+                                                         text.indexOf('目录') >= 0 ||
+                                                         /\d+\s*\/\s*\d+/.test(text);
+                                        // 检查宽度是否大于屏幕宽度
+                                        if (el.offsetWidth > window.innerWidth * 0.8 && hasLawText) {
+                                            candidates.push({
+                                                element: el,
+                                                width: el.offsetWidth,
+                                                area: el.offsetWidth * el.offsetHeight
+                                            });
+                                        }
+                                    }
+                                    
+                                    // 按面积排序，取最大的作为内容容器
+                                    candidates.sort(function(a, b) { return b.area - a.area; });
+                                    
                                     var contentEl = null;
-                                    
-                                    // 优先找 canvas
-                                    var canvas = reader.querySelector('canvas');
-                                    if (canvas) {
-                                        contentEl = canvas;
-                                        // 设置 canvas 宽度为 100%，高度自动
-                                        canvas.style.width = '100%';
-                                        canvas.style.height = 'auto';
-                                        canvas.style.display = 'block';
-                                        canvas.style.maxWidth = '100%';
-                                    }
-                                    
-                                    // 其次找 iframe
-                                    var iframe = reader.querySelector('iframe');
-                                    if (iframe && !contentEl) {
-                                        contentEl = iframe;
-                                        iframe.style.width = '100%';
-                                        iframe.style.height = '100%';
-                                        iframe.style.border = 'none';
-                                    }
-                                    
-                                    // 如果内容区域是固定宽度的 div，用 transform 缩放
-                                    if (!contentEl) {
-                                        // 找 reader 内最大的固定宽度元素
-                                        var innerEls = reader.querySelectorAll('div');
-                                        var maxWidth = 0;
-                                        var targetEl = null;
-                                        for (var e = 0; e < innerEls.length; e++) {
-                                            var el = innerEls[e];
-                                            if (el.offsetWidth > maxWidth && el.offsetWidth > window.innerWidth * 0.5) {
-                                                maxWidth = el.offsetWidth;
-                                                targetEl = el;
+                                    if (candidates.length > 0) {
+                                        contentEl = candidates[0].element;
+                                    } else {
+                                        // 如果没找到，取 reader 内第一个宽度大于屏幕的元素
+                                        for (var j = 0; j < allDivs.length; j++) {
+                                            if (allDivs[j].offsetWidth > window.innerWidth) {
+                                                contentEl = allDivs[j];
+                                                break;
                                             }
                                         }
+                                    }
+                                    
+                                    if (contentEl && contentEl.offsetWidth > window.innerWidth) {
+                                        // 计算缩放比例（留一点边距）
+                                        var scale = (window.innerWidth - 20) / contentEl.offsetWidth;
                                         
-                                        if (targetEl && maxWidth > window.innerWidth) {
-                                            contentEl = targetEl;
-                                            // 计算缩放比例
-                                            var scale = window.innerWidth / maxWidth;
-                                            // 用 transform 缩放
-                                            targetEl.style.transform = 'scale(' + scale + ')';
-                                            targetEl.style.transformOrigin = 'top left';
-                                            // 调整高度
-                                            var newHeight = targetEl.offsetHeight * scale;
-                                            targetEl.style.marginBottom = (newHeight - targetEl.offsetHeight) + 'px';
+                                        // 用 transform 缩放内容容器
+                                        contentEl.style.transform = 'scale(' + scale + ')';
+                                        contentEl.style.transformOrigin = 'top center';
+                                        contentEl.style.margin = '0 auto';
+                                        
+                                        // 计算缩放后的高度，调整父容器高度
+                                        var scaledHeight = contentEl.offsetHeight * scale;
+                                        
+                                        // 找到 contentEl 的直接父元素，调整其高度
+                                        var parent = contentEl.parentElement;
+                                        if (parent) {
+                                            parent.style.minHeight = scaledHeight + 'px';
+                                            parent.style.height = 'auto';
+                                        }
+                                        
+                                        // 给 contentEl 添加一个占位元素，撑起缩放后的高度
+                                        var placeholder = document.createElement('div');
+                                        placeholder.style.height = scaledHeight + 'px';
+                                        placeholder.style.width = '100%';
+                                        placeholder.style.pointerEvents = 'none';
+                                        contentEl.parentNode.insertBefore(placeholder, contentEl.nextSibling);
+                                    }
+                                    
+                                    // 同时缩放 reader 内所有固定宽度的子元素
+                                    var fixedWidthEls = reader.querySelectorAll('*');
+                                    for (var k = 0; k < fixedWidthEls.length; k++) {
+                                        var fel = fixedWidthEls[k];
+                                        if (fel.offsetWidth > window.innerWidth && fel !== contentEl) {
+                                            var fscale = (window.innerWidth - 20) / fel.offsetWidth;
+                                            fel.style.transform = 'scale(' + fscale + ')';
+                                            fel.style.transformOrigin = 'top center';
                                         }
                                     }
                                     
-                                    // 触发 resize 事件，让内容重新布局
+                                    // 触发 resize 事件
                                     window.dispatchEvent(new Event('resize'));
                                     
                                 } catch(e) {
                                     console.log('adapt mobile width error:', e);
                                 }
-                            }, 1000);
+                            }, 1500);
                             
                             // 添加 viewport meta 标签
                             var viewport = document.querySelector('meta[name="viewport"]');
