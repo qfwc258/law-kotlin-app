@@ -674,12 +674,13 @@ class LawWebParser private constructor(context: Context) {
     }
 
     /**
-     * 获取 PDF 下载直链（带签名，有效期1小时）
+     * 获取文件下载直链（带签名，有效期1小时）
      *
-     * @param ossPdfPath OSS PDF 文件路径
-     * @return Result<String> PDF 下载 URL
+     * @param filePath OSS 文件路径
+     * @param fileType 文件类型：pdf 或 docx
+     * @return Result<String> 下载 URL
      */
-    suspend fun getDownloadUrl(ossPdfPath: String): Result<String> = withContext(Dispatchers.Main) {
+    suspend fun getDownloadUrl(filePath: String, fileType: String = "pdf"): Result<String> = withContext(Dispatchers.Main) {
         if (!ensureInitialized()) {
             return@withContext Result.Error("网络初始化失败，请检查网络连接")
         }
@@ -688,7 +689,7 @@ class LawWebParser private constructor(context: Context) {
             (function() {
                 window.__downloadResult = null;
                 window.__downloadError = null;
-                fetch('/law-search/amazonFile/ofdGenerateLink?filePath=$ossPdfPath&fileType=pdf', {
+                fetch('/law-search/amazonFile/ofdGenerateLink?filePath=$filePath&fileType=$fileType', {
                     method: 'GET',
                     headers: {'Accept': 'application/json'}
                 })

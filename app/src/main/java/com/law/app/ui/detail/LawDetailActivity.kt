@@ -105,11 +105,11 @@ class LawDetailActivity : AppCompatActivity() {
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     progressBar.visibility = View.GONE
-                    // 页面加载完成后，延迟注入 JS，隐藏多余元素，只显示 OFD 阅读器
-                    // 延迟 2 秒，等待 OFD 阅读器加载完成
+                    // 页面加载完成后，延迟注入 JS，隐藏多余元素，只显示 WPS 内容
+                    // 延迟 3 秒，等待 WPS 内容加载完成
                     view?.postDelayed({
                         injectReaderOnlyMode(view)
-                    }, 2000)
+                    }, 3000)
                 }
 
                 override fun shouldOverrideUrlLoading(
@@ -220,63 +220,62 @@ class LawDetailActivity : AppCompatActivity() {
     }
 
     /**
-     * 注入 JS，隐藏网站多余元素，只显示 OFD 阅读器
+     * 注入 JS，隐藏网站多余元素，只显示 WPS 内容区域
      *
      * 思路：
-     * 1. 找到 OFD 阅读器（iframe 或 canvas）
-     * 2. 找到阅读器的最顶层容器
-     * 3. 隐藏 body 的所有直接子元素
-     * 4. 显示阅读器容器，设置为全屏固定定位
+     * 1. 找到 WPS 内容区域（iframe 或 canvas，或最大的内容区域）
+     * 2. 从 body 开始，只保留包含 WPS 内容的元素路径
+     * 3. 隐藏其他所有元素
+     * 4. 设置 WPS 内容区域为全屏，适配手机宽度
      */
     private fun injectReaderOnlyMode(view: WebView) {
         val js = """
             (function() {
                 try {
-                    // 定义全局函数，用于重试
                     window.__tryReaderOnlyMode = function() {
                         try {
-                            // 找到 OFD 阅读器（优先找 canvas，其次找 iframe，最后找最大内容区域）
+                            // 1. 找到 WPS 内容区域（优先 iframe，其次 canvas，最后找最大的 div）
                             var reader = null;
                             
-                            // 1. 优先找 canvas（OFD 阅读器通常用 canvas 渲染）
-                            var canvases = document.querySelectorAll('canvas');
-                            if (canvases.length > 0) {
-                                // 找最大的 canvas
+                            // 优先找 iframe（WPS 在线预览通常是 iframe）
+                            var iframes = document.querySelectorAll('iframe');
+                            if (iframes.length > 0) {
                                 var maxArea = 0;
-                                for (var i = 0; i < canvases.length; i++) {
-                                    var area = canvases[i].offsetWidth * canvases[i].offsetHeight;
-                                    if (area > maxArea) {
+                                for (var i = 0; i < iframes.length; i++) {
+                                    var area = iframes[i].offsetWidth * iframes[i].offsetHeight;
+                                    if (area > maxArea && area > 10000) {
                                         maxArea = area;
-                                        reader = canvases[i];
+                                        reader = iframes[i];
                                     }
                                 }
                             }
                             
-                            // 2. 如果没找到 canvas，找 iframe
+                            // 其次找 canvas（OFD 阅读器通常用 canvas）
                             if (!reader) {
-                                var iframes = document.querySelectorAll('iframe');
-                                if (iframes.length > 0) {
-                                    // 找最大的 iframe
+                                var canvases = document.querySelectorAll('canvas');
+                                if (canvases.length > 0) {
                                     var maxArea2 = 0;
-                                    for (var j = 0; j < iframes.length; j++) {
-                                        var area2 = iframes[j].offsetWidth * iframes[j].offsetHeight;
-                                        if (area2 > maxArea2) {
+                                    for (var j = 0; j < canvases.length; j++) {
+                                        var area2 = canvases[j].offsetWidth * canvases[j].offsetHeight;
+                                        if (area2 > maxArea2 && area2 > 10000) {
                                             maxArea2 = area2;
-                                            reader = iframes[j];
+                                            reader = canvases[j];
                                         }
                                     }
                                 }
                             }
                             
-                            // 3. 如果都没找到，找页面中最大的内容区域
+                            // 最后找最大的 div（包含法规内容文字）
                             if (!reader) {
-                                var allElements = document.body.querySelectorAll('div, section, article');
+                                var allDivs = document.querySelectorAll('div');
                                 var maxArea3 = 0;
-                                for (var k = 0; k < allElements.length; k++) {
-                                    var el = allElements[k];
+                                for (var k = 0; k < allDivs.length; k++) {
+                                    var el = allDivs[k];
                                     var area3 = el.offsetWidth * el.offsetHeight;
-                                    // 只考虑面积大于屏幕一半的元素
-                                    if (area3 > maxArea3 && area3 > window.innerWidth * window.innerHeight * 0.3) {
+                                    var text = el.textContent || '';
+                                    // 只考虑包含法规内容关键词且面积较大的元素
+                                    if (area3 > maxArea3 && area3 > window.innerWidth * window.innerHeight * 0.2 &&
+                                        (text.indexOf('第') >= 0 || text.indexOf('条') >= 0 || text.indexOf('章') >= 0)) {
                                         maxArea3 = area3;
                                         reader = el;
                                     }
@@ -284,9 +283,9 @@ class LawDetailActivity : AppCompatActivity() {
                             }
                             
                             if (!reader) {
-                                // 没有找到阅读器，1秒后重试（最多重试30次）
+                                // 没有找到，1秒后重试（最多重试20次）
                                 if (!window.__readerRetryCount) window.__readerRetryCount = 0;
-                                if (window.__readerRetryCount < 30) {
+                                if (window.__readerRetryCount < 20) {
                                     window.__readerRetryCount++;
                                     setTimeout(window.__tryReaderOnlyMode, 1000);
                                 }
@@ -297,66 +296,60 @@ class LawDetailActivity : AppCompatActivity() {
                             if (window.__readerOnlyModeApplied) return;
                             window.__readerOnlyModeApplied = true;
                             
-                            // 找到阅读器的最顶层容器（在 body 下的直接子元素）
-                            var container = reader;
-                            while (container.parentElement && container.parentElement !== document.body) {
-                                container = container.parentElement;
+                            // 2. 找到从 body 到 reader 的路径上的所有元素
+                            var path = [];
+                            var current = reader;
+                            while (current && current !== document.body) {
+                                path.unshift(current);
+                                current = current.parentElement;
                             }
                             
-                            // 隐藏 body 的所有直接子元素
-                            var children = document.body.children;
-                            for (var i = 0; i < children.length; i++) {
-                                children[i].style.display = 'none';
-                            }
-                            
-                            // 显示阅读器容器，设置为全屏固定定位
-                            container.style.display = 'block';
-                            container.style.position = 'fixed';
-                            container.style.top = '0';
-                            container.style.left = '0';
-                            container.style.width = '100%';
-                            container.style.height = '100%';
-                            container.style.zIndex = '9999';
-                            container.style.background = '#fff';
-                            container.style.overflow = 'auto';
-                            container.style.webkitOverflowScrolling = 'touch';
-                            
-                            // 让 iframe 自适应手机宽度
-                            var iframe = container.querySelector('iframe');
-                            if (iframe) {
-                                iframe.style.width = '100%';
-                                iframe.style.height = '100%';
-                                iframe.style.border = 'none';
-                                iframe.style.display = 'block';
-                                iframe.setAttribute('scrolling', 'auto');
-                            }
-                            
-                            // 让 canvas 自适应手机宽度
-                            var canvas = container.querySelector('canvas');
-                            if (canvas) {
-                                canvas.style.width = '100%';
-                                canvas.style.height = 'auto';
-                                canvas.style.display = 'block';
-                            }
-                            
-                            // 隐藏容器内所有非阅读器元素（递归）
-                            function hideNonReaderElements(element) {
-                                if (!element || element === reader) return;
-                                var children = element.children;
+                            // 3. 从 body 开始，只保留路径上的元素，隐藏其他兄弟元素
+                            function keepOnlyPath(parent, pathIndex) {
+                                if (pathIndex >= path.length) return;
+                                var target = path[pathIndex];
+                                var children = parent.children;
                                 for (var i = 0; i < children.length; i++) {
                                     var child = children[i];
-                                    // 如果子元素包含阅读器，递归处理
-                                    if (child.contains(reader)) {
-                                        hideNonReaderElements(child);
+                                    if (child === target) {
+                                        // 保留目标元素，递归处理其子元素
+                                        keepOnlyPath(child, pathIndex + 1);
                                     } else {
-                                        // 隐藏非阅读器元素
+                                        // 隐藏非目标兄弟元素
                                         child.style.display = 'none';
                                     }
                                 }
                             }
-                            hideNonReaderElements(container);
+                            keepOnlyPath(document.body, 0);
                             
-                            // 添加 viewport meta 标签，确保移动端适配
+                            // 4. 设置 body 和 html 为全屏，无滚动条
+                            document.documentElement.style.margin = '0';
+                            document.documentElement.style.padding = '0';
+                            document.documentElement.style.overflow = 'hidden';
+                            document.body.style.margin = '0';
+                            document.body.style.padding = '0';
+                            document.body.style.overflow = 'hidden';
+                            document.body.style.background = '#fff';
+                            
+                            // 5. 设置路径上所有元素为全屏宽度
+                            for (var m = 0; m < path.length; m++) {
+                                var el = path[m];
+                                el.style.width = '100%';
+                                el.style.maxWidth = '100%';
+                                el.style.margin = '0';
+                                el.style.padding = '0';
+                                el.style.boxSizing = 'border-box';
+                                el.style.overflow = 'auto';
+                            }
+                            
+                            // 6. 设置 reader 为全屏高度
+                            reader.style.width = '100%';
+                            reader.style.height = '100vh';
+                            reader.style.maxWidth = '100%';
+                            reader.style.display = 'block';
+                            reader.style.border = 'none';
+                            
+                            // 7. 添加 viewport meta 标签
                             var viewport = document.querySelector('meta[name="viewport"]');
                             if (!viewport) {
                                 viewport = document.createElement('meta');
@@ -365,14 +358,7 @@ class LawDetailActivity : AppCompatActivity() {
                             }
                             viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes');
                             
-                            // 把阅读器容器添加到 body（确保它在最顶层）
-                            document.body.appendChild(container);
-                            
-                            // 隐藏 html 和 body 的滚动条，让阅读器全屏显示
-                            document.documentElement.style.overflow = 'hidden';
-                            document.body.style.overflow = 'hidden';
-                            
-                            // 延迟触发 resize 事件，让阅读器重新计算布局
+                            // 8. 延迟触发 resize 事件
                             setTimeout(function() {
                                 window.dispatchEvent(new Event('resize'));
                             }, 500);
