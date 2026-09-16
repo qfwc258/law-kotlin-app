@@ -105,11 +105,9 @@ class LawDetailActivity : AppCompatActivity() {
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     progressBar.visibility = View.GONE
-                    // 页面加载完成后，延迟注入 JS，隐藏多余元素，只显示 WPS 内容
-                    // 延迟 3 秒，等待 WPS 内容加载完成
-                    view?.postDelayed({
-                        injectReaderOnlyMode(view)
-                    }, 3000)
+                    // 等待 OFD 加载完成后再注入 JS，避免白屏
+                    // 轮询检测 id 为 previewIframe 的 iframe 是否存在
+                    waitForOfdAndInject(view, 0)
                 }
 
                 override fun shouldOverrideUrlLoading(
@@ -219,6 +217,46 @@ class LawDetailActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 等待 OFD 加载完成后再注入 JS，避免白屏
+     * 轮询检测 id 为 previewIframe 的 iframe 是否存在
+     */
+    private fun waitForOfdAndInject(view: WebView?, retryCount: Int) {
+        if (view == null) return
+        
+        // 最多轮询 30 次（每次 500ms，总共 15 秒）
+        if (retryCount >= 30) {
+            // 超时后仍然注入 JS（即使 OFD 没加载完）
+            injectReaderOnlyMode(view)
+            return
+        }
+        
+        // 检测 previewIframe 是否存在
+        val checkJs = """
+            (function() {
+                var iframe = document.getElementById('previewIframe');
+                if (iframe && iframe.src && iframe.src.length > 0) {
+                    return 'ready';
+                }
+                return 'not-ready';
+            })()
+        """.trimIndent()
+        
+        view.evaluateJavascript(checkJs) { result ->
+            if (result == "\"ready\"") {
+                // OFD iframe 已存在，再等待 1 秒确保内容加载完成，然后注入 JS
+                view.postDelayed({
+                    injectReaderOnlyMode(view)
+                }, 1000)
+            } else {
+                // OFD iframe 还没加载，500ms 后重试
+                view.postDelayed({
+                    waitForOfdAndInject(view, retryCount + 1)
+                }, 500)
+            }
+        }
+    }
+    
     /**
      * 注入 JS，隐藏网站多余元素，只显示 WPS 内容区域
      *
