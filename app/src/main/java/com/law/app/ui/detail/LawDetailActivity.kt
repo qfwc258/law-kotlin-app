@@ -366,22 +366,6 @@ class LawDetailActivity : AppCompatActivity() {
                             reader.style.display = 'block';
                             reader.style.border = 'none';
                             
-                            // 隐藏目录按钮（三条横线图标）和工具栏
-                            var allButtons = reader.querySelectorAll('button, [role="button"], .toolbar, .header, .nav');
-                            for (var b = 0; b < allButtons.length; b++) {
-                                var btn = allButtons[b];
-                                var btnText = btn.textContent || '';
-                                var btnClass = btn.className || '';
-                                // 隐藏包含目录图标或文字的按钮，以及工具栏
-                                if (btnText.indexOf('目录') >= 0 || 
-                                    btnClass.indexOf('toolbar') >= 0 || 
-                                    btnClass.indexOf('header') >= 0 ||
-                                    btnClass.indexOf('nav') >= 0 ||
-                                    (btn.offsetWidth < 100 && btn.offsetHeight < 100 && btn.querySelectorAll('svg, span').length > 0)) {
-                                    btn.style.display = 'none';
-                                }
-                            }
-                            
                             // 适配手机宽度：找到内容区域并缩放
                             setTimeout(function() {
                                 try {
