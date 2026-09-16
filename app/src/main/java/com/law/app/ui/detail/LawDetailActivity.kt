@@ -616,20 +616,22 @@ class LawDetailActivity : AppCompatActivity() {
                                             funcArea.style.borderBottom = '1px solid #eee';
                                         }
                                         
-                                        // 定期检查并显示下载弹出框（Element UI dropdown）
+                                        // 记录当前 iframe 的 src，用于检测变化
+                                        var currentIframeSrc = reader.src;
+                                        
+                                        // 定期检查：1. 显示下载弹出框 2. 检测 iframe 变化并重新缩放
                                         setInterval(function() {
                                             try {
+                                                // 1. 显示下载弹出框
                                                 var popups = document.querySelectorAll('.el-tooltip__popper, [class*="dropdown"], [class*="popover"], [class*="el-popper"]');
                                                 for (var i = 0; i < popups.length; i++) {
                                                     var popup = popups[i];
-                                                    // 只显示包含"下载"或"WPS"或"公报"文字的弹出框
                                                     var popupText = (popup.textContent || '').trim();
                                                     if (popupText.indexOf('下载') >= 0 || popupText.indexOf('WPS') >= 0 || popupText.indexOf('公报') >= 0) {
                                                         popup.style.display = 'block';
                                                         popup.style.visibility = 'visible';
                                                         popup.style.opacity = '1';
                                                         popup.style.zIndex = '9999';
-                                                        // 确保弹出框在视口内
                                                         var popupRect = popup.getBoundingClientRect();
                                                         if (popupRect.top < 0) {
                                                             popup.style.top = funcAreaHeight + 'px';
@@ -641,6 +643,58 @@ class LawDetailActivity : AppCompatActivity() {
                                                             popup.style.left = (window.innerWidth - popupRect.width - 10) + 'px';
                                                         }
                                                     }
+                                                }
+                                                
+                                                // 2. 检测 iframe src 变化（切换 WPS版本/公报原版后），重新应用缩放
+                                                var iframe = document.querySelector('#previewIframe, iframe');
+                                                if (iframe && iframe.src !== currentIframeSrc) {
+                                                    currentIframeSrc = iframe.src;
+                                                    console.log('iframe src changed, re-applying scale...');
+                                                    
+                                                    // 延迟重新应用缩放，等待新内容加载
+                                                    setTimeout(function() {
+                                                        try {
+                                                            var newIframe = document.querySelector('#previewIframe, iframe');
+                                                            if (newIframe) {
+                                                                var origWidth = 750;
+                                                                var newScale = window.innerWidth / origWidth;
+                                                                var fHeight = 44;
+                                                                var fArea = document.querySelector('.func-area');
+                                                                if (fArea) {
+                                                                    fHeight = fArea.offsetHeight || 44;
+                                                                }
+                                                                
+                                                                newIframe.style.width = origWidth + 'px';
+                                                                newIframe.style.height = ((window.innerHeight - fHeight) / newScale) + 'px';
+                                                                newIframe.style.minHeight = ((window.innerHeight - fHeight) / newScale) + 'px';
+                                                                newIframe.style.transform = 'scale(' + newScale + ')';
+                                                                newIframe.style.transformOrigin = 'top left';
+                                                                newIframe.style.border = 'none';
+                                                                newIframe.style.display = 'block';
+                                                                newIframe.style.margin = '0';
+                                                                newIframe.style.padding = '0';
+                                                                
+                                                                var iParent = newIframe.parentElement;
+                                                                if (iParent) {
+                                                                    iParent.style.marginTop = fHeight + 'px';
+                                                                    iParent.style.height = (window.innerHeight - fHeight) + 'px';
+                                                                    iParent.style.minHeight = (window.innerHeight - fHeight) + 'px';
+                                                                }
+                                                            }
+                                                        } catch(e) {
+                                                            console.error('Re-apply scale error:', e);
+                                                        }
+                                                    }, 1000);
+                                                }
+                                                
+                                                // 3. 确保下载按钮可见且可点击
+                                                var downloadBtn = document.querySelector('.download, [class*="download"]');
+                                                if (downloadBtn) {
+                                                    downloadBtn.style.display = '';
+                                                    downloadBtn.style.visibility = 'visible';
+                                                    downloadBtn.style.opacity = '1';
+                                                    downloadBtn.style.pointerEvents = 'auto';
+                                                    downloadBtn.style.cursor = 'pointer';
                                                 }
                                             } catch(e) {}
                                         }, 500);
