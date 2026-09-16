@@ -10,9 +10,11 @@ import android.os.Environment
 import android.view.Gravity
 import android.view.MenuItem
 import android.view.View
+import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -21,18 +23,13 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.law.app.data.parser.LawWebParser
 import com.law.app.util.Constants
-import com.law.app.util.Result
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * 法规详情页 - 传统 Activity + WebView 实现
  *
- * 用 TVBox 模式获取 OFD 阅读器 URL，然后用 WebView 加载。
+ * 直接加载国家法律法规数据库详情页，
+ * 网站会自动加载 OFD 阅读器渲染 PDF 内容。
  */
 class LawDetailActivity : AppCompatActivity() {
 
@@ -42,7 +39,6 @@ class LawDetailActivity : AppCompatActivity() {
     private lateinit var loadingContainer: FrameLayout
     private var lawId: String = ""
     private var lawTitle: String = "法规详情"
-    private val scope = CoroutineScope(Dispatchers.Main)
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +53,12 @@ class LawDetailActivity : AppCompatActivity() {
             title = lawTitle
             setDisplayHomeAsUpEnabled(true)
             setDisplayShowHomeEnabled(true)
+        }
+
+        // 启用 Cookie
+        CookieManager.getInstance().apply {
+            setAcceptCookie(true)
+            setAcceptThirdPartyCookies(webView, true)
         }
 
         // 创建根布局
@@ -95,9 +97,10 @@ class LawDetailActivity : AppCompatActivity() {
                 builtInZoomControls = true
                 displayZoomControls = false
                 mediaPlaybackRequiresUserGesture = false
-                mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                 textZoom = 100
-                userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36 LawApp/1.0"
+                cacheMode = WebSettings.LOAD_DEFAULT
+                userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
             }
 
             webViewClient = object : WebViewClient() {
@@ -121,6 +124,13 @@ class LawDetailActivity : AppCompatActivity() {
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                     progressBar.progress = newProgress
+                }
+
+                override fun onReceivedTitle(view: WebView?, title: String?) {
+                    super.onReceivedTitle(view, title)
+                    if (!title.isNullOrBlank() && title != "about:blank") {
+                        supportActionBar?.title = title
+                    }
                 }
             }
 
@@ -192,76 +202,13 @@ class LawDetailActivity : AppCompatActivity() {
         rootLayout.addView(loadingContainer)
         setContentView(rootLayout)
 
-        // 加载详情
+        // 直接加载网站详情页
         if (lawId.isNotBlank()) {
-            loadDetail()
+            val url = "${Constants.OFFICIAL_URL}detail?bbbs=$lawId"
+            webView.loadUrl(url)
         } else {
             Toast.makeText(this, "无效的法规ID", Toast.LENGTH_SHORT).show()
             finish()
-        }
-    }
-
-    /**
-     * 用 TVBox 模式获取 OFD 阅读器 URL，然后加载
-     */
-    private fun loadDetail() {
-        scope.launch {
-            try {
-                loadingText.text = "正在获取详情数据…"
-
-                // 用 LawWebParser 获取详情
-                val parser = LawWebParser.getInstance(this@LawDetailActivity)
-                val detailResult = withContext(Dispatchers.IO) {
-                    parser.getLawDetail(lawId)
-                }
-
-                when (detailResult) {
-                    is Result.Success -> {
-                        val law = detailResult.data
-                        lawTitle = law.title
-                        supportActionBar?.title = lawTitle
-
-                        // 获取 OFD 阅读器 URL
-                        val ossPdfPath = law.ossPdfPath
-                        if (!ossPdfPath.isNullOrEmpty()) {
-                            loadingText.text = "正在获取预览链接…"
-                            val previewResult = withContext(Dispatchers.IO) {
-                                parser.getPreviewUrl(ossPdfPath)
-                            }
-                            when (previewResult) {
-                                is Result.Success -> {
-                                    // 加载 OFD 阅读器
-                                    webView.loadUrl(previewResult.data)
-                                }
-                                is Result.Error -> {
-                                    // 获取预览链接失败，加载网站详情页作为兜底
-                                    loadingText.text = "预览链接获取失败，加载网页版…"
-                                    val fallbackUrl = "${Constants.OFFICIAL_URL}detail?bbbs=$lawId"
-                                    webView.loadUrl(fallbackUrl)
-                                }
-                                is Result.Loading -> {}
-                            }
-                        } else {
-                            // 没有 PDF 路径，加载网站详情页
-                            loadingText.text = "正在加载网页版…"
-                            val fallbackUrl = "${Constants.OFFICIAL_URL}detail?bbbs=$lawId"
-                            webView.loadUrl(fallbackUrl)
-                        }
-                    }
-                    is Result.Error -> {
-                        // 获取详情失败，加载网站详情页作为兜底
-                        loadingText.text = "详情获取失败，加载网页版…"
-                        val fallbackUrl = "${Constants.OFFICIAL_URL}detail?bbbs=$lawId"
-                        webView.loadUrl(fallbackUrl)
-                    }
-                    is Result.Loading -> {}
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this@LawDetailActivity, "加载失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                // 兜底：加载网站详情页
-                val fallbackUrl = "${Constants.OFFICIAL_URL}detail?bbbs=$lawId"
-                webView.loadUrl(fallbackUrl)
-            }
         }
     }
 
