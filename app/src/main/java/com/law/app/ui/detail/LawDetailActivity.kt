@@ -57,7 +57,7 @@ class LawDetailActivity : AppCompatActivity() {
                 // 创建下载目录
                 val downloadDir = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                    "法规宝典"
+                    "法律宝典"
                 )
                 if (!downloadDir.exists()) {
                     downloadDir.mkdirs()
@@ -237,7 +237,7 @@ class LawDetailActivity : AppCompatActivity() {
                         request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                         request.setDestinationInExternalPublicDir(
                             Environment.DIRECTORY_DOWNLOADS,
-                            "法规宝典/${lawTitle}.${if (mimeType.contains("pdf")) "pdf" else "docx"}"
+                            "法律宝典/${lawTitle}.${if (mimeType.contains("pdf")) "pdf" else "docx"}"
                         )
                         val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
                         dm.enqueue(request)

@@ -94,7 +94,7 @@ class LawDownloadManager(private val context: Context) {
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "法规宝典/$fileName")
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "法律宝典/$fileName")
 
         try {
             val downloadId = downloadManager.enqueue(request)
@@ -130,7 +130,7 @@ class LawDownloadManager(private val context: Context) {
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "法规宝典/$safeTitle")
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "法律宝典/$safeTitle")
 
         try {
             val downloadId = downloadManager.enqueue(request)
@@ -150,7 +150,7 @@ class LawDownloadManager(private val context: Context) {
         val fileName = "${safeTitle}.${format.lowercase()}"
         val file = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            "法规宝典/$fileName"
+            "法律宝典/$fileName"
         )
 
         if (!file.exists()) {

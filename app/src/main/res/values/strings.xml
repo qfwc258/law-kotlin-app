@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">法规宝典</string>
+    <string name="app_name">法律宝典</string>
     <string name="search_hint">搜索法律法规…</string>
     <string name="tab_home">首页</string>
     <string name="tab_search">搜索</string>
@@ -26,5 +26,5 @@
     <string name="download_complete">下载完成</string>
     <string name="download_failed">下载失败</string>
     <string name="open_file">打开文件</string>
-    <string name="download_location">文件保存至：下载/法规宝典/</string>
+    <string name="download_location">文件保存至：下载/法律宝典/</string>
 </resources>

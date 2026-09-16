@@ -2,7 +2,7 @@
 <paths>
     <!-- 公共下载目录 -->
     <external-path name="downloads" path="Download/" />
-    <external-path name="downloads_law" path="Download/法规宝典/" />
+    <external-path name="downloads_law" path="Download/法律宝典/" />
     <!-- 应用专属文件目录 -->
     <files-path name="files" path="." />
     <cache-path name="cache" path="." />

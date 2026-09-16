@@ -1,4 +1,4 @@
-# 法规宝典 (Law Kotlin App)
+# 法律宝典 (Law Kotlin App)
 
 一款基于 **Kotlin + Jetpack Compose** 的安卓法律法规查询 APP，对接 **国家法律法规数据库**（flk.npc.gov.cn），支持法条搜索、详情查看、收藏与阅读历史。
 

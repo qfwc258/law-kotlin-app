@@ -156,7 +156,7 @@ fun HomeScreen(
                         item {
                             Column {
                                 SectionTitle(
-                                    title = "法规分类",
+                                    title = "法律分类",
                                     icon = Icons.Default.Gavel
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
