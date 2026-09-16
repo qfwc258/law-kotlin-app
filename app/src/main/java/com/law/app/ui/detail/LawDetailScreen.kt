@@ -4,9 +4,7 @@ import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.graphics.Bitmap
 import android.view.ViewGroup
-import android.webkit.DownloadListener
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -21,9 +19,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -31,10 +26,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,13 +35,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -70,14 +59,12 @@ import com.law.app.ui.common.StatusBadge
 import com.law.app.ui.common.TypeBadge
 import com.law.app.ui.theme.Favorite
 import com.law.app.util.Constants
-import com.law.app.util.DownloadState
 
 /**
- * 法规详情页 - 原生头部 + WebView 正文（移动端 CSS 优化）
+ * 法规详情页 - 简化版
  *
  * 顶部原生 AppBar + 基本信息卡片 + 操作栏，
- * 下方 WebView 加载法规详情页并注入移动端 CSS，
- * 支持下载、复制全文、目录导航。
+ * 下方 WebView 加载 OFD 阅读器预览 PDF。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,32 +78,16 @@ fun LawDetailScreen(
     var webView by remember { mutableStateOf<WebView?>(null) }
     var isContentLoading by remember { mutableStateOf(true) }
     var contentProgress by remember { mutableStateOf(0) }
-    var showCatalogSheet by remember { mutableStateOf(false) }
-    val catalogSheetState = rememberModalBottomSheetState()
-
-    // 目录项（在顶层计算，避免在 if 块内使用 remember 导致崩溃）
-    val catalogItems = remember(uiState.law?.contentTreeJson) {
-        uiState.law?.contentTreeJson?.let { parseCatalogItems(it) } ?: emptyList()
-    }
 
     LaunchedEffect(lawId) {
         viewModel.loadLaw(lawId)
     }
 
-    // 监听预览 URL 变化，加载 OFD 阅读器（在顶层执行，避免在条件分支内导致问题）
+    // 监听预览 URL 变化，加载 OFD 阅读器
     LaunchedEffect(uiState.previewUrl) {
         val url = uiState.previewUrl
         if (!url.isNullOrEmpty()) {
             webView?.loadUrl(url)
-        }
-    }
-
-    // WebView 生命周期管理
-    DisposableEffect(Unit) {
-        onDispose {
-            webView?.stopLoading()
-            webView?.destroy()
-            webView = null
         }
     }
 
@@ -145,7 +116,6 @@ fun LawDetailScreen(
                         )
                     }
                     IconButton(onClick = {
-                        // 复制链接
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         val clip = ClipData.newPlainText("法规链接", "${Constants.OFFICIAL_URL}detail?bbbs=$lawId")
                         clipboard.setPrimaryClip(clip)
@@ -174,7 +144,7 @@ fun LawDetailScreen(
                     )
                 }
                 uiState.law != null -> {
-                    uiState.law?.let { law ->
+                    val law = uiState.law!!
                     Column(modifier = Modifier.fillMaxSize()) {
                         // 基本信息卡片
                         Card(
@@ -218,47 +188,20 @@ fun LawDetailScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp)
-                                .padding(bottom = 8.dp),
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             // 下载 PDF
                             AssistChip(
-                                onClick = {
-                                    if (uiState.pdfDownloadState is DownloadState.Completed) {
-                                        viewModel.openPdf()
-                                    } else {
-                                        viewModel.downloadPdf()
-                                    }
-                                },
-                                label = {
-                                    Text(
-                                        text = when (uiState.pdfDownloadState) {
-                                            is DownloadState.Downloading -> "下载中 ${(uiState.pdfDownloadState as DownloadState.Downloading).progress}%"
-                                            is DownloadState.Completed -> "打开 PDF"
-                                            is DownloadState.Failed -> "重试下载"
-                                            else -> "下载 PDF"
-                                        },
-                                        style = MaterialTheme.typography.labelLarge
-                                    )
-                                },
+                                onClick = { viewModel.downloadPdf() },
+                                label = { Text("下载PDF", style = MaterialTheme.typography.labelLarge) },
                                 leadingIcon = {
-                                    Icon(
-                                        imageVector = if (uiState.pdfDownloadState is DownloadState.Completed)
-                                            Icons.Default.PictureAsPdf else Icons.Default.Download,
-                                        contentDescription = null,
-                                        tint = if (uiState.pdfDownloadState is DownloadState.Completed)
-                                            MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Icon(Icons.Default.Download, contentDescription = null)
                                 },
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = if (uiState.pdfDownloadState is DownloadState.Completed)
-                                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                                ),
                                 modifier = Modifier.weight(1f)
                             )
 
-                            // 复制全文（OFD 预览暂不支持文本提取，提示下载后复制）
+                            // 复制全文（OFD 预览暂不支持）
                             AssistChip(
                                 onClick = {
                                     Toast.makeText(
@@ -273,22 +216,12 @@ fun LawDetailScreen(
                                 },
                                 modifier = Modifier.weight(1f)
                             )
-
-                            // 目录
-                            AssistChip(
-                                onClick = { showCatalogSheet = true },
-                                label = { Text("目录", style = MaterialTheme.typography.labelLarge) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.List, contentDescription = null)
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
                         }
 
                         // 下载进度条
-                        if (uiState.pdfDownloadState is DownloadState.Downloading) {
+                        if (uiState.pdfDownloadState is com.law.app.util.DownloadState.Downloading) {
                             LinearProgressIndicator(
-                                progress = { (uiState.pdfDownloadState as DownloadState.Downloading).progress / 100f },
+                                progress = { (uiState.pdfDownloadState as com.law.app.util.DownloadState.Downloading).progress / 100f },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 12.dp),
@@ -326,7 +259,7 @@ fun LawDetailScreen(
                                         }
 
                                         webViewClient = object : WebViewClient() {
-                                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                                 isContentLoading = true
                                                 contentProgress = 0
                                             }
@@ -348,23 +281,6 @@ fun LawDetailScreen(
                                                 contentProgress = newProgress
                                             }
                                         }
-
-                                        // 下载拦截
-                                        setDownloadListener(DownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
-                                            // 用系统下载管理器下载
-                                            val request = android.app.DownloadManager.Request(android.net.Uri.parse(url))
-                                            request.setMimeType(mimeType)
-                                            request.setTitle("法规文件下载")
-                                            request.setDescription("正在下载…")
-                                            request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                                            request.setDestinationInExternalPublicDir(
-                                                android.os.Environment.DIRECTORY_DOWNLOADS,
-                                                "法规宝典/${law.title}.pdf"
-                                            )
-                                            val dm = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-                                            dm.enqueue(request)
-                                            Toast.makeText(ctx, "开始下载…", Toast.LENGTH_SHORT).show()
-                                        })
 
                                         webView = this
 
@@ -412,7 +328,7 @@ fun LawDetailScreen(
                             }
 
                             // 初始加载圈
-                            if (isContentLoading && contentProgress == 0) {
+                            if (isContentLoading && contentProgress == 0 && !uiState.isPreviewLoading) {
                                 CircularProgressIndicator(
                                     modifier = Modifier
                                         .align(Alignment.Center)
@@ -421,52 +337,6 @@ fun LawDetailScreen(
                             }
                         }
                     }
-                    } // end of let
-                }
-            }
-        }
-    }
-
-    // 目录抽屉
-    if (showCatalogSheet && catalogItems.isNotEmpty()) {
-        ModalBottomSheet(
-            onDismissRequest = { showCatalogSheet = false },
-            sheetState = catalogSheetState
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 32.dp)
-            ) {
-                Text(
-                    text = "目录",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(catalogItems, key = { it.title + it.depth }) { item ->
-                        Text(
-                            text = item.title,
-                            style = if (item.isArticle) {
-                                MaterialTheme.typography.bodyMedium
-                            } else {
-                                MaterialTheme.typography.titleSmall
-                            },
-                            color = if (item.isArticle) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            },
-                            fontWeight = if (item.isArticle) FontWeight.Normal else FontWeight.SemiBold,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = (item.depth * 16).dp, top = 8.dp, bottom = 8.dp)
-                        )
-                    }
                 }
             }
         }
@@ -474,52 +344,15 @@ fun LawDetailScreen(
 }
 
 /**
- * 目录项数据
- */
-private data class CatalogItemData(
-    val title: String,
-    val depth: Int,
-    val isArticle: Boolean
-)
-
-/**
- * 从目录树 JSON 解析出扁平化的目录列表（使用 org.json，避免 Gson 问题）
- */
-private fun parseCatalogItems(json: String): List<CatalogItemData> {
-    return try {
-        val root = org.json.JSONObject(json)
-        val result = mutableListOf<CatalogItemData>()
-        fun traverse(node: org.json.JSONObject, depth: Int) {
-            val title = node.optString("title", "")
-            if (depth > 0 && title.isNotEmpty()) {
-                val isArticle = title.startsWith("第") && title.contains("条")
-                result.add(CatalogItemData(title, depth, isArticle))
-            }
-            val children = node.optJSONArray("children")
-            if (children != null) {
-                for (i in 0 until children.length()) {
-                    traverse(children.getJSONObject(i), depth + 1)
-                }
-            }
-        }
-        traverse(root, 0)
-        result
-    } catch (e: Exception) {
-        emptyList()
-    }
-}
-
-/**
- * 基本信息行
+ * 元信息行
  */
 @Composable
 private fun MetaInfoRow(label: String, value: String) {
-    if (value.isBlank()) return
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             text = label,
