@@ -1,0 +1,120 @@
+package com.law.app.navigation
+
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.law.app.ui.detail.LawDetailScreen
+import com.law.app.ui.favorites.FavoritesScreen
+import com.law.app.ui.home.HomeScreen
+import com.law.app.ui.search.SearchScreen
+
+/**
+ * 底部导航路由
+ */
+sealed class BottomNavItem(
+    val route: String,
+    val label: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    data object Home : BottomNavItem("home", "首页", Icons.Default.Book)
+    data object Search : BottomNavItem("search", "搜索", Icons.Default.Search)
+    data object Favorites : BottomNavItem("favorites", "收藏", Icons.Default.Favorite)
+}
+
+/**
+ * 全应用导航
+ */
+@Composable
+fun AppNavigation() {
+    val navController = rememberNavController()
+    val bottomItems = listOf(
+        BottomNavItem.Home,
+        BottomNavItem.Search,
+        BottomNavItem.Favorites
+    )
+
+    Scaffold(
+        bottomBar = {
+            val navBackStackEntry by navController.currentBackStackEntryAsState()
+            val currentDestination = navBackStackEntry?.destination
+            // 详情页隐藏底部导航
+            val showBottomBar = currentDestination?.hierarchy?.none {
+                it.route?.startsWith("detail/") == true
+            } ?: true
+
+            if (showBottomBar) {
+                NavigationBar {
+                    bottomItems.forEach { item ->
+                        NavigationBarItem(
+                            icon = { Icon(item.icon, contentDescription = item.label) },
+                            label = { Text(item.label) },
+                            selected = currentDestination?.hierarchy?.any {
+                                it.route == item.route
+                            } == true,
+                            onClick = {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    ) { innerPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = BottomNavItem.Home.route,
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            composable(BottomNavItem.Home.route) {
+                HomeScreen(
+                    onLawClick = { lawId -> navController.navigate("detail/$lawId") },
+                    onSearchClick = { navController.navigate(BottomNavItem.Search.route) }
+                )
+            }
+            composable(BottomNavItem.Search.route) {
+                SearchScreen(
+                    onLawClick = { lawId -> navController.navigate("detail/$lawId") }
+                )
+            }
+            composable(BottomNavItem.Favorites.route) {
+                FavoritesScreen(
+                    onLawClick = { lawId -> navController.navigate("detail/$lawId") }
+                )
+            }
+            composable(
+                route = "detail/{lawId}",
+                arguments = listOf(navArgument("lawId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val lawId = backStackEntry.arguments?.getString("lawId") ?: ""
+                LawDetailScreen(
+                    lawId = lawId,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+        }
+    }
+}
