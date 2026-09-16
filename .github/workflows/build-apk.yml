@@ -24,6 +24,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -73,6 +76,47 @@ jobs:
           name: law-app-release-signed-apk
           path: app/build/outputs/apk/release/*.apk
           retention-days: 90
+
+      - name: Commit APK to release folder
+        run: |
+          # 配置 git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 创建 release 目录（如果不存在）
+          mkdir -p release
+          
+          # 找到生成的 APK
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "APK path: $APK_PATH"
+          
+          if [ -n "$APK_PATH" ]; then
+            # 获取版本号和日期
+            VERSION_NAME=$(grep -oP 'versionName "\K[^"]+' app/build.gradle.kts 2>/dev/null || echo "1.0.0")
+            DATE=$(date +%Y%m%d)
+            APK_NAME="法律宝典-v${VERSION_NAME}-${DATE}.apk"
+            
+            # 复制 APK 到 release 目录
+            cp "$APK_PATH" "release/$APK_NAME"
+            echo "APK copied to: release/$APK_NAME"
+            ls -la release/
+            
+            # 提交并推送（使用 [skip ci] 避免无限循环）
+            git add -f "release/$APK_NAME"
+            git commit -m "ci: 自动提交APK到release目录 [skip ci]
+
+APK: $APK_NAME
+版本: $VERSION_NAME
+日期: $DATE
+构建: ${{ github.run_number }}" || echo "No changes to commit"
+            
+            # 推送到当前分支
+            CURRENT_BRANCH="${{ github.ref_name }}"
+            echo "Pushing to branch: $CURRENT_BRANCH"
+            git push origin "HEAD:$CURRENT_BRANCH" || echo "Push failed or no changes"
+          else
+            echo "APK not found"
+          fi
 
       - name: Upload Release Mapping
         if: always()
