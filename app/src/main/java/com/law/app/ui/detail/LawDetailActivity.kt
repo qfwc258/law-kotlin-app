@@ -106,9 +106,10 @@ class LawDetailActivity : AppCompatActivity() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     progressBar.visibility = View.GONE
                     // 页面加载完成后，延迟注入 JS，隐藏多余元素，只显示 OFD 阅读器
+                    // 延迟 2 秒，等待 OFD 阅读器加载完成
                     view?.postDelayed({
                         injectReaderOnlyMode(view)
-                    }, 1000)
+                    }, 2000)
                 }
 
                 override fun shouldOverrideUrlLoading(
@@ -234,14 +235,60 @@ class LawDetailActivity : AppCompatActivity() {
                     // 定义全局函数，用于重试
                     window.__tryReaderOnlyMode = function() {
                         try {
-                            // 找到 OFD 阅读器（iframe 或 canvas）
-                            var reader = document.querySelector('iframe') || document.querySelector('canvas');
+                            // 找到 OFD 阅读器（优先找 canvas，其次找 iframe，最后找最大内容区域）
+                            var reader = null;
+                            
+                            // 1. 优先找 canvas（OFD 阅读器通常用 canvas 渲染）
+                            var canvases = document.querySelectorAll('canvas');
+                            if (canvases.length > 0) {
+                                // 找最大的 canvas
+                                var maxArea = 0;
+                                for (var i = 0; i < canvases.length; i++) {
+                                    var area = canvases[i].offsetWidth * canvases[i].offsetHeight;
+                                    if (area > maxArea) {
+                                        maxArea = area;
+                                        reader = canvases[i];
+                                    }
+                                }
+                            }
+                            
+                            // 2. 如果没找到 canvas，找 iframe
                             if (!reader) {
-                                // 没有找到阅读器，500ms 后重试（最多重试10次）
+                                var iframes = document.querySelectorAll('iframe');
+                                if (iframes.length > 0) {
+                                    // 找最大的 iframe
+                                    var maxArea2 = 0;
+                                    for (var j = 0; j < iframes.length; j++) {
+                                        var area2 = iframes[j].offsetWidth * iframes[j].offsetHeight;
+                                        if (area2 > maxArea2) {
+                                            maxArea2 = area2;
+                                            reader = iframes[j];
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // 3. 如果都没找到，找页面中最大的内容区域
+                            if (!reader) {
+                                var allElements = document.body.querySelectorAll('div, section, article');
+                                var maxArea3 = 0;
+                                for (var k = 0; k < allElements.length; k++) {
+                                    var el = allElements[k];
+                                    var area3 = el.offsetWidth * el.offsetHeight;
+                                    // 只考虑面积大于屏幕一半的元素
+                                    if (area3 > maxArea3 && area3 > window.innerWidth * window.innerHeight * 0.3) {
+                                        maxArea3 = area3;
+                                        reader = el;
+                                    }
+                                }
+                            }
+                            
+                            if (!reader) {
+                                // 没有找到阅读器，1秒后重试（最多重试30次）
                                 if (!window.__readerRetryCount) window.__readerRetryCount = 0;
-                                if (window.__readerRetryCount < 10) {
+                                if (window.__readerRetryCount < 30) {
                                     window.__readerRetryCount++;
-                                    setTimeout(window.__tryReaderOnlyMode, 500);
+                                    setTimeout(window.__tryReaderOnlyMode, 1000);
                                 }
                                 return;
                             }
@@ -291,6 +338,23 @@ class LawDetailActivity : AppCompatActivity() {
                                 canvas.style.height = 'auto';
                                 canvas.style.display = 'block';
                             }
+                            
+                            // 隐藏容器内所有非阅读器元素（递归）
+                            function hideNonReaderElements(element) {
+                                if (!element || element === reader) return;
+                                var children = element.children;
+                                for (var i = 0; i < children.length; i++) {
+                                    var child = children[i];
+                                    // 如果子元素包含阅读器，递归处理
+                                    if (child.contains(reader)) {
+                                        hideNonReaderElements(child);
+                                    } else {
+                                        // 隐藏非阅读器元素
+                                        child.style.display = 'none';
+                                    }
+                                }
+                            }
+                            hideNonReaderElements(container);
                             
                             // 添加 viewport meta 标签，确保移动端适配
                             var viewport = document.querySelector('meta[name="viewport"]');
