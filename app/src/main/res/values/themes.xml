@@ -1,6 +1,14 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Compose 主页面主题 -->
     <style name="Theme.LawKotlinApp" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@color/primary</item>
         <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- 详情页主题（AppCompatActivity 需要 AppCompat 主题） -->
+    <style name="Theme.LawKotlinApp.Detail" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary</item>
+        <item name="colorAccent">@color/primary</item>
     </style>
 </resources>
