@@ -5,8 +5,8 @@
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
-    <!-- 详情页主题（AppCompatActivity 需要 AppCompat 主题） -->
-    <style name="Theme.LawKotlinApp.Detail" parent="Theme.AppCompat.Light.NoActionBar">
+    <!-- 详情页主题（AppCompatActivity 需要 AppCompat 主题，需要 ActionBar 显示菜单） -->
+    <style name="Theme.LawKotlinApp.Detail" parent="Theme.AppCompat.Light">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryDark">@color/primary</item>
         <item name="colorAccent">@color/primary</item>

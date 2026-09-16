@@ -43,7 +43,7 @@ class LawDetailActivity : AppCompatActivity() {
     private lateinit var loadingText: TextView
     private lateinit var loadingContainer: FrameLayout
     private var lawId: String = ""
-    private var lawTitle: String = "法规详情"
+    private var lawTitle: String = "法条详情"
 
     /**
      * JavaScript 接口：用于接收 blob URL 转换后的 base64 数据并保存为文件
@@ -93,7 +93,7 @@ class LawDetailActivity : AppCompatActivity() {
 
         // 获取参数
         lawId = intent.getStringExtra(EXTRA_LAW_ID) ?: ""
-        lawTitle = intent.getStringExtra(EXTRA_LAW_TITLE) ?: "法规详情"
+        lawTitle = intent.getStringExtra(EXTRA_LAW_TITLE) ?: "法条详情"
 
         // 设置标题栏
         supportActionBar?.apply {
@@ -282,7 +282,7 @@ class LawDetailActivity : AppCompatActivity() {
         }
 
         loadingText = TextView(this).apply {
-            text = "正在加载法规详情…"
+            text = "正在加载法条详情…"
             textSize = 16f
             setTextColor(android.graphics.Color.parseColor("#666666"))
             gravity = Gravity.CENTER
@@ -763,7 +763,7 @@ class LawDetailActivity : AppCompatActivity() {
         /**
          * 启动详情页
          */
-        fun start(context: Context, lawId: String, lawTitle: String = "法规详情") {
+        fun start(context: Context, lawId: String, lawTitle: String = "法条详情") {
             val intent = Intent(context, LawDetailActivity::class.java).apply {
                 putExtra(EXTRA_LAW_ID, lawId)
                 putExtra(EXTRA_LAW_TITLE, lawTitle)
