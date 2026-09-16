@@ -18,12 +18,29 @@ data class Law(
     val pdfUrl: String? = null,
     val wpsUrl: String? = null,
     val detailUrl: String? = null,
+    /** OSS PDF 文件路径（新版 API，用于下载） */
+    val ossPdfPath: String? = null,
+    /** OSS Word 文件路径（新版 API，用于下载） */
+    val ossWordPath: String? = null,
+    /** 目录树 JSON（新版 API，编->章->条） */
+    val contentTreeJson: String? = null,
+    /** 效力状态: 1=已修改, 2=已废止, 3=现行有效 */
+    val status: Int? = null,
     // 本地属性
     val isFavorite: Boolean = false,
     val lastReadTime: Long = 0L
 ) {
     /** 是否有正文内容 */
-    val hasContent: Boolean get() = content.isNotBlank()
+    val hasContent: Boolean get() = content.isNotBlank() || contentTreeJson != null
+
+    /** 效力状态文本 */
+    val statusText: String
+        get() = when (status) {
+            1 -> "已修改"
+            2 -> "已废止"
+            3 -> "现行有效"
+            else -> "未知"
+        }
 
     /** 从正文中按"第X条"切分条文列表 */
     fun extractArticles(): List<Article> {
@@ -49,4 +66,14 @@ data class Law(
 data class Article(
     val number: String,
     val text: String
+)
+
+/**
+ * 目录节点（用于详情页展示目录树）
+ */
+data class CatalogNode(
+    val title: String,
+    val depth: Int,
+    val isArticle: Boolean,
+    val children: List<CatalogNode> = emptyList()
 )

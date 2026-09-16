@@ -1,73 +1,69 @@
 package com.law.app.data.remote.api
 
 import com.law.app.data.remote.dto.LawDetailResponse
+import com.law.app.data.remote.dto.LawSearchRequest
 import com.law.app.data.remote.dto.LawSearchResponse
+import com.law.app.data.remote.dto.PreviewLinkResponse
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.Query
 
 /**
- * 国家法律法规数据库 API 接口
+ * 国家法律法规数据库 API 接口（新版 SPA 站点）
  *
- * 基地址: https://flk.npc.gov.cn/api/
+ * 基地址: https://flk.npc.gov.cn/
  *
- * 查询参数说明:
- * - page: 页码（从1开始）
- * - size: 每页条数（默认10）
- * - type: 法规类型
- *     flfg  = 法律法规
- *     xzfg  = 行政法规
- *     jcfg  = 监察法规
- *     sfjs  = 司法解释
- *     dfxfg = 地方性法规
- *     fljs  = 法律解释
- * - searchType: 搜索方式
- *     title;vague    = 标题模糊搜索
- *     title;accurate = 标题精确搜索
- * - sortTr: 排序字段
- *     f_bbrq_s;desc = 按发布日期降序
- *     f_bbrq_s;asc  = 按发布日期升序
- * - gbrqStart/gbrqEnd: 公布日期范围
- * - sxrqStart/sxrqEnd: 施行日期范围
- * - xlwj: 效力位阶筛选
- * - sort: 是否排序（true/false）
+ * 注意: 新版网站已重构为 Vue/React SPA，旧版 /api/ 端点已失效。
+ * 所有请求需携带 User-Agent 和 Referer 头，否则可能被拦截。
  */
 interface LawApiService {
 
     /**
-     * 搜索法规列表
-     * @param keyword 搜索关键词（对应 title 参数）
-     * @param type 法规类型，默认 flfg
-     * @param searchType 搜索方式，默认标题模糊
-     * @param page 页码
-     * @param size 每页条数
-     * @param sortTr 排序
-     * @param gbrqStart 公布日期起（yyyy-MM-dd）
-     * @param gbrqEnd 公布日期止（yyyy-MM-dd）
-     * @param sxrqStart 施行日期起（yyyy-MM-dd）
-     * @param sxrqEnd 施行日期止（yyyy-MM-dd）
-     * @param xlwj 效力位阶
+     * 搜索法规列表（新版 API）
+     *
+     * 端点: POST /law-search/search/list
+     *
+     * 请求体:
+     * - searchRange: 搜索范围 (1=全部, 2=标题, 3=正文)
+     * - searchType: 搜索类型 (1=精确, 2=模糊)
+     * - searchContent: 搜索关键词
+     * - pageNum: 页码（从1开始）
+     * - pageSize: 每页条数
+     *
+     * 响应: { total, rows, code, msg }
      */
-    @GET(".")
+    @POST("law-search/search/list")
     suspend fun searchLaws(
-        @Query("title") keyword: String? = null,
-        @Query("type") type: String = "flfg",
-        @Query("searchType") searchType: String = "title;vague",
-        @Query("page") page: Int = 1,
-        @Query("size") size: Int = 10,
-        @Query("sortTr") sortTr: String = "f_bbrq_s;desc",
-        @Query("gbrqStart") gbrqStart: String? = null,
-        @Query("gbrqEnd") gbrqEnd: String? = null,
-        @Query("sxrqStart") sxrqStart: String? = null,
-        @Query("sxrqEnd") sxrqEnd: String? = null,
-        @Query("xlwj") xlwj: String? = null,
-        @Query("sort") sort: Boolean = true
+        @Body request: LawSearchRequest
     ): LawSearchResponse
 
     /**
-     * 获取法规详情（按 ID）
+     * 获取法规详情（新版 API）
+     *
+     * 端点: GET /law-search/search/flfgDetails
+     *
+     * @param bbbs 法规唯一标识（从搜索结果的 bbbs 字段获取）
+     *
+     * 响应: { code, msg, data: { bbbs, title, gbrq, sxrq, sxx, zdjgName, flxz, ossFile, content } }
+     * 注意: content 是目录树（编->章->条），不包含条文正文，正文需查看 PDF。
      */
-    @GET(".")
+    @GET("law-search/search/flfgDetails")
     suspend fun getLawDetail(
-        @Query("id") id: String
+        @Query("bbbs") bbbs: String
     ): LawDetailResponse
+
+    /**
+     * 获取文件预览链接（用于 PDF/OFD 在线预览）
+     *
+     * 端点: GET /law-search/amazonFile/previewLink
+     *
+     * @param filePath OSS 文件路径（从详情的 ossFile.ossPdfPath 获取）
+     * @param fileType 文件类型 (pdf/word)
+     */
+    @GET("law-search/amazonFile/previewLink")
+    suspend fun getPreviewLink(
+        @Query("filePath") filePath: String,
+        @Query("fileType") fileType: String = "pdf"
+    ): PreviewLinkResponse
 }

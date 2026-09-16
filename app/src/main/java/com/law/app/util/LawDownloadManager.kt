@@ -70,9 +70,10 @@ class LawDownloadManager(private val context: Context) {
      */
     fun download(law: Law, format: String = "pdf") {
         val stateKey = "${law.id}_${format.lowercase()}"
+        // 新版 API 优先使用 ossPdfPath/ossWordPath 构建下载 URL
         val url = when (format.lowercase()) {
-            "pdf" -> law.pdfUrl
-            "wps" -> law.wpsUrl
+            "pdf" -> buildDownloadUrl(law.ossPdfPath, law.pdfUrl)
+            "wps", "doc", "docx" -> buildDownloadUrl(law.ossWordPath, law.wpsUrl)
             else -> null
         }
 
@@ -243,6 +244,19 @@ class LawDownloadManager(private val context: Context) {
         "pdf" -> "application/pdf"
         "wps", "doc", "docx" -> "application/msword"
         else -> "application/octet-stream"
+    }
+
+    /**
+     * 构建下载 URL
+     * 新版 API 使用 OSS 内部路径，需通过 ofdGenerateLink 转换为可下载 URL
+     * 旧版 API 直接使用完整 URL
+     */
+    private fun buildDownloadUrl(ossPath: String?, fallbackUrl: String?): String? {
+        if (!ossPath.isNullOrBlank()) {
+            // 新版 API: 通过 ofdGenerateLink 获取可访问的文件 URL
+            return "https://flk.npc.gov.cn/law-search/amazonFile/ofdGenerateLink?filePath=${java.net.URLEncoder.encode(ossPath, "UTF-8")}"
+        }
+        return fallbackUrl
     }
 }
 

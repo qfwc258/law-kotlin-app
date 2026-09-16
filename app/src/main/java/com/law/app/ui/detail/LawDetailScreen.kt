@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -147,6 +148,8 @@ fun LawDetailScreen(
                             if (law.effectiveDate.isNotBlank()) {
                                 MetaInfoRow(label = "施行日期", value = law.effectiveDate)
                             }
+                            // 效力状态
+                            MetaInfoRow(label = "效力状态", value = law.statusText)
                             Spacer(modifier = Modifier.height(8.dp))
                             androidx.compose.material3.Divider()
                             Spacer(modifier = Modifier.height(16.dp))
@@ -220,23 +223,24 @@ fun LawDetailScreen(
                             }
                         }
 
-                        // 正文标题
+                        // 目录标题
                         item {
                             Text(
-                                text = "正文",
+                                text = "目录",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                         }
 
-                        // 法条列表
-                        if (uiState.articles.isNotEmpty()) {
-                            items(uiState.articles, key = { it.number + it.text.hashCode() }) { article ->
-                                ArticleItem(article = article)
+                        // 目录树展示（新版 API 只返回目录，正文需下载 PDF）
+                        if (law.contentTreeJson != null) {
+                            val catalogItems = rememberCatalogItems(law.contentTreeJson)
+                            items(catalogItems, key = { it.title + it.depth }) { item ->
+                                CatalogItem(node = item)
                             }
                         } else if (law.content.isNotBlank()) {
-                            // 无法切分条文时显示全文
+                            // 回退显示文本内容
                             item {
                                 Text(
                                     text = law.content,
@@ -246,11 +250,24 @@ fun LawDetailScreen(
                             }
                         } else {
                             item {
-                                Text(
-                                    text = "正文内容暂不可用，可访问国家法律法规数据库查看原文。",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PictureAsPdf,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                    Text(
+                                        text = "条文正文请下载 PDF 原文查看",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
 
@@ -316,6 +333,71 @@ private fun ArticleItem(article: Article) {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
             lineHeight = androidx.compose.ui.unit.TextUnit(28f, androidx.compose.ui.unit.TextUnitType.Sp)
+        )
+    }
+}
+
+/**
+ * 目录项数据
+ */
+private data class CatalogItemData(
+    val title: String,
+    val depth: Int,
+    val isArticle: Boolean
+)
+
+/**
+ * 从目录树 JSON 解析出扁平化的目录列表
+ */
+@Composable
+private fun rememberCatalogItems(json: String): List<CatalogItemData> {
+    return remember(json) {
+        try {
+            val gson = com.google.gson.Gson()
+            val root = gson.fromJson(json, com.law.app.data.remote.dto.ContentNode::class.java)
+            val result = mutableListOf<CatalogItemData>()
+            fun traverse(node: com.law.app.data.remote.dto.ContentNode, depth: Int) {
+                if (depth > 0) { // 跳过根节点
+                    val isArticle = node.title?.startsWith("第") == true && node.title.contains("条")
+                    result.add(CatalogItemData(node.title ?: "", depth, isArticle))
+                }
+                node.children?.forEach { traverse(it, depth + 1) }
+            }
+            traverse(root, 0)
+            result
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+}
+
+/**
+ * 单个目录项
+ */
+@Composable
+private fun CatalogItem(node: CatalogItemData) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                start = (8.dp * node.depth).coerceAtMost(48.dp),
+                vertical = if (node.isArticle) 4.dp else 8.dp
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = node.title,
+            style = if (node.isArticle) {
+                MaterialTheme.typography.bodyMedium
+            } else {
+                MaterialTheme.typography.titleSmall
+            },
+            color = if (node.isArticle) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
+            fontWeight = if (node.isArticle) FontWeight.Normal else FontWeight.SemiBold
         )
     }
 }

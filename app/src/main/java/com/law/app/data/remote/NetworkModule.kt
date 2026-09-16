@@ -29,6 +29,8 @@ object NetworkModule {
                 val request = chain.request().newBuilder()
                     .header("User-Agent", Constants.USER_AGENT)
                     .header("Accept", "application/json")
+                    .header("Referer", Constants.REFERER)
+                    .header("Origin", "https://flk.npc.gov.cn")
                     .build()
                 chain.proceed(request)
             }

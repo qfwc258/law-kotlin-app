@@ -1,5 +1,6 @@
 package com.law.app.data.repository
 
+import com.google.gson.Gson
 import com.law.app.data.local.LawDao
 import com.law.app.data.local.LawEntity
 import com.law.app.data.model.Law
@@ -7,9 +8,11 @@ import com.law.app.data.model.LawType
 import com.law.app.data.model.SearchMode
 import com.law.app.data.model.SortOrder
 import com.law.app.data.remote.NetworkModule
-import com.law.app.data.remote.dto.LawDetailResponse
+import com.law.app.data.remote.dto.ContentNode
 import com.law.app.data.remote.dto.LawDetailData
+import com.law.app.data.remote.dto.LawDetailResponse
 import com.law.app.data.remote.dto.LawRecordDto
+import com.law.app.data.remote.dto.LawSearchRequest
 import com.law.app.data.remote.dto.LawSearchResponse
 import com.law.app.util.Constants
 import com.law.app.util.Result
@@ -24,16 +27,23 @@ import kotlinx.coroutines.flow.map
  * - 详情：优先远程 API，失败时回退本地缓存
  * - 收藏/历史：纯本地
  * - 离线：搜索回退本地缓存
+ *
+ * 新版 API 说明:
+ * - 搜索: POST /law-search/search/list
+ * - 详情: GET /law-search/search/flfgDetails?bbbs=xxx
+ * - 详情只返回目录树，不返回条文正文，正文需通过 PDF 查看
  */
 class LawRepository(
     private val api: com.law.app.data.remote.api.LawApiService = NetworkModule.lawApiService,
     private val dao: LawDao
 ) {
 
+    private val gson = Gson()
+
     // ===== 搜索 =====
 
     /**
-     * 搜索法规（远程 API）
+     * 搜索法规（远程 API，新版 POST 接口）
      */
     suspend fun searchLaws(
         keyword: String,
@@ -48,20 +58,16 @@ class LawRepository(
         sxrqEnd: String? = null
     ): Result<Pair<List<Law>, Int>> {
         return try {
-            val response: LawSearchResponse = api.searchLaws(
-                keyword = keyword.ifBlank { null },
-                type = if (type == LawType.ALL) "flfg" else type.code,
-                searchType = searchMode.param,
-                page = page,
-                size = size,
-                sortTr = sortOrder.param,
-                gbrqStart = gbrqStart,
-                gbrqEnd = gbrqEnd,
-                sxrqStart = sxrqStart,
-                sxrqEnd = sxrqEnd
+            val request = LawSearchRequest(
+                searchRange = 1, // 1=全部范围
+                searchType = if (searchMode == SearchMode.EXACT) 1 else 2, // 1=精确, 2=模糊
+                searchContent = keyword,
+                pageNum = page,
+                pageSize = size
             )
-            if (response.isSuccess && response.data != null) {
-                val laws = response.data.list.map { it.toDomain() }
+            val response: LawSearchResponse = api.searchLaws(request)
+            if (response.isSuccess) {
+                val laws = response.rows.map { it.toDomain() }
                 // 写入缓存（保留收藏和阅读状态）
                 laws.forEach { law ->
                     val cached = dao.getLawById(law.id)
@@ -72,14 +78,13 @@ class LawRepository(
                         )
                     )
                 }
-                Result.success(laws to response.data.total)
+                Result.success(laws to response.total)
             } else {
                 Result.error(response.msg ?: "搜索失败")
             }
         } catch (e: Exception) {
             // 网络失败时回退本地缓存搜索
-            val cached = dao.searchCachedLaws(keyword)
-            Result.error("网络不可用，已显示本地缓存: ${e.message}", e)
+            Result.error("网络请求失败: ${e.message}", e)
         }
     }
 
@@ -100,7 +105,7 @@ class LawRepository(
         try {
             val response: LawDetailResponse = api.getLawDetail(id)
             if (response.isSuccess && response.data != null) {
-                val law = response.data.toDomain()
+                val law = response.data.toDomain(gson)
                 val cached = dao.getLawById(id)
                 dao.insertOrUpdate(
                     law.toEntity(
@@ -159,38 +164,84 @@ class LawRepository(
 
 // ===== Mapper 扩展函数 =====
 
+/** 清理标题中的 HTML 高亮标签 */
+private fun String?.cleanHighlight(): String {
+    if (this == null) return ""
+    return this.replace(Regex("""<em[^>]*>"""), "")
+        .replace(Regex("""</em>"""), "")
+        .trim()
+}
+
+/**
+ * 搜索记录 -> 领域模型
+ */
 private fun LawRecordDto.toDomain(): Law = Law(
-    id = id ?: title?.hashCode()?.toString() ?: System.currentTimeMillis().toString(),
-    title = title ?: "",
-    type = LawType.fromCode(type ?: ""),
-    typeName = type ?: "",
-    lawLevel = xlwj ?: "",
-    issuingAuthority = issuingAuthority ?: "",
-    publishDate = publishDate ?: "",
-    effectiveDate = effectiveDate ?: "",
-    documentNumber = documentNumber ?: "",
-    summary = summary ?: "",
-    content = content ?: "",
-    pdfUrl = pdfUrl,
-    wpsUrl = wpsUrl,
-    detailUrl = detailUrl
+    id = bbbs ?: title?.hashCode()?.toString() ?: System.currentTimeMillis().toString(),
+    title = title.cleanHighlight(),
+    type = LawType.fromCode("flfg"), // 新版 API 搜索结果默认为法律法规
+    typeName = flxz ?: "",
+    lawLevel = flxz ?: "",
+    issuingAuthority = zdjgName ?: "",
+    publishDate = gbrq ?: "",
+    effectiveDate = sxrq ?: "",
+    documentNumber = "",
+    summary = "",
+    content = "",
+    pdfUrl = null,
+    wpsUrl = null,
+    detailUrl = null,
+    ossPdfPath = null,
+    ossWordPath = null,
+    contentTreeJson = null,
+    status = sxx
 )
 
-private fun LawDetailData.toDomain(): Law = Law(
-    id = id ?: "",
-    title = title ?: "",
-    type = LawType.fromCode(type ?: ""),
-    typeName = type ?: "",
-    lawLevel = xlwj ?: "",
-    issuingAuthority = issuingAuthority ?: "",
-    publishDate = publishDate ?: "",
-    effectiveDate = effectiveDate ?: "",
-    documentNumber = documentNumber ?: "",
-    summary = summary ?: "",
-    content = content ?: "",
-    pdfUrl = pdfUrl,
-    wpsUrl = wpsUrl
-)
+/**
+ * 详情数据 -> 领域模型
+ */
+private fun LawDetailData.toDomain(gson: Gson): Law {
+    // 序列化目录树为 JSON 字符串存储
+    val treeJson = content?.let { gson.toJson(it) }
+
+    // 从目录树生成文本摘要（编章节列表）
+    val contentText = content?.let { node ->
+        buildString {
+            node.getAllChapters().forEach { (depth, n) ->
+                if (depth > 0) {
+                    append("  ".repeat(depth - 1))
+                    append(n.title)
+                    append("\n")
+                }
+            }
+            val articles = node.getAllArticles()
+            if (articles.isNotEmpty()) {
+                append("\n共 ${articles.size} 条条文\n")
+                append("（正文请查看 PDF 原文）\n")
+            }
+        }
+    } ?: ""
+
+    return Law(
+        id = bbbs ?: "",
+        title = title ?: "",
+        type = LawType.fromCode("flfg"),
+        typeName = flxz ?: "",
+        lawLevel = flxz ?: "",
+        issuingAuthority = zdjgName ?: "",
+        publishDate = gbrq ?: "",
+        effectiveDate = sxrq ?: "",
+        documentNumber = "",
+        summary = "",
+        content = contentText,
+        pdfUrl = null,
+        wpsUrl = null,
+        detailUrl = null,
+        ossPdfPath = ossFile?.ossPdfPath,
+        ossWordPath = ossFile?.ossWordPath,
+        contentTreeJson = treeJson,
+        status = sxx
+    )
+}
 
 private fun LawEntity.toDomain(): Law = Law(
     id = id,
@@ -207,6 +258,10 @@ private fun LawEntity.toDomain(): Law = Law(
     pdfUrl = pdfUrl,
     wpsUrl = wpsUrl,
     detailUrl = detailUrl,
+    ossPdfPath = ossPdfPath,
+    ossWordPath = ossWordPath,
+    contentTreeJson = contentTreeJson,
+    status = status,
     isFavorite = isFavorite,
     lastReadTime = lastReadTime
 )
@@ -229,6 +284,10 @@ private fun Law.toEntity(
     pdfUrl = pdfUrl,
     wpsUrl = wpsUrl,
     detailUrl = detailUrl,
+    ossPdfPath = ossPdfPath,
+    ossWordPath = ossWordPath,
+    contentTreeJson = contentTreeJson,
+    status = status,
     isFavorite = isFavorite,
     lastReadTime = lastReadTime
 )

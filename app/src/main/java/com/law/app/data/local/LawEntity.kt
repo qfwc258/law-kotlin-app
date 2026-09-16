@@ -25,6 +25,14 @@ data class LawEntity(
     val pdfUrl: String? = null,
     val wpsUrl: String? = null,
     val detailUrl: String? = null,
+    /** OSS PDF 文件路径（新版 API） */
+    val ossPdfPath: String? = null,
+    /** OSS Word 文件路径（新版 API） */
+    val ossWordPath: String? = null,
+    /** 目录树 JSON（新版 API） */
+    val contentTreeJson: String? = null,
+    /** 效力状态 */
+    val status: Int? = null,
     val isFavorite: Boolean = false,
     val lastReadTime: Long = 0L,
     val cachedAt: Long = System.currentTimeMillis()
