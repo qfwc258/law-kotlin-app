@@ -678,12 +678,11 @@ class LawWebParser private constructor(context: Context) {
     /**
      * 修复 OFD 阅读器 URL
      *
-     * 问题：previewLink API 返回的 URL 中 file 参数没有 URL 编码，
+     * 问题：ofdGenerateLink API 返回的文件名没有格式后缀，
      * 导致 OFD 阅读器报错"回调信息中文件名没有带格式后缀"
      *
-     * 修复：
-     * 1. 对 file 参数进行 URL 编码
-     * 2. 添加 fileName 参数（带 .pdf 后缀）
+     * 修复：在 file 参数中的 API URL 末尾添加 fileName=law.pdf 参数，
+     * 让 API 返回带后缀的文件名
      */
     private fun fixOFDReaderUrl(url: String): String {
         return try {
@@ -698,18 +697,22 @@ class LawWebParser private constructor(context: Context) {
             val fileValueEnd = url.indexOf("&", fileValueStart).let {
                 if (it == -1) url.length else it
             }
-            val fileValue = url.substring(fileValueStart, fileValueEnd)
+            var fileValue = url.substring(fileValueStart, fileValueEnd)
 
-            // 对 file 参数进行 URL 编码
-            val encodedFileValue = java.net.URLEncoder.encode(fileValue, "UTF-8")
+            // 在 file 参数中的 API URL 末尾添加 fileName=law.pdf 参数
+            if (!fileValue.contains("fileName=")) {
+                fileValue = if (fileValue.contains("?")) {
+                    "$fileValue&fileName=law.pdf"
+                } else {
+                    "$fileValue?fileName=law.pdf"
+                }
+            }
 
             // 构建新的 URL
             val prefix = url.substring(0, fileParamIndex)
             val suffix = if (fileValueEnd < url.length) url.substring(fileValueEnd) else ""
 
-            // 添加 fileName 参数
-            val separator = if (suffix.startsWith("&")) "" else if (suffix.isEmpty()) "&" else "&"
-            "$prefix$encodedFileValue${separator}fileName=law.pdf$suffix"
+            "$prefix$fileValue$suffix"
         } catch (e: Exception) {
             url // 修复失败，返回原始 URL
         }
