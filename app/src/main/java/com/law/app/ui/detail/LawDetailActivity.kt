@@ -7,11 +7,13 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
+import android.util.Base64
 import android.view.Gravity
 import android.view.MenuItem
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -24,6 +26,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.law.app.util.Constants
+import java.io.File
+import java.io.FileOutputStream
 
 /**
  * 法规详情页 - 传统 Activity + WebView 实现
@@ -39,6 +43,48 @@ class LawDetailActivity : AppCompatActivity() {
     private lateinit var loadingContainer: FrameLayout
     private var lawId: String = ""
     private var lawTitle: String = "法规详情"
+
+    /**
+     * JavaScript 接口：用于接收 blob URL 转换后的 base64 数据并保存为文件
+     */
+    inner class BlobDownloadInterface {
+        @JavascriptInterface
+        fun onBlobData(base64Data: String, fileName: String, mimeType: String) {
+            try {
+                // 解码 base64 数据
+                val data = Base64.decode(base64Data, Base64.DEFAULT)
+
+                // 创建下载目录
+                val downloadDir = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    "法规宝典"
+                )
+                if (!downloadDir.exists()) {
+                    downloadDir.mkdirs()
+                }
+
+                // 保存文件
+                val file = File(downloadDir, fileName)
+                FileOutputStream(file).use { it.write(data) }
+
+                runOnUiThread {
+                    Toast.makeText(
+                        this@LawDetailActivity,
+                        "下载完成: ${file.absolutePath}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(
+                        this@LawDetailActivity,
+                        "下载失败: ${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,6 +143,9 @@ class LawDetailActivity : AppCompatActivity() {
                 userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36"
             }
 
+            // 添加 JavaScript 接口，用于处理 blob URL 下载
+            addJavascriptInterface(BlobDownloadInterface(), "BlobDownloader")
+
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     progressBar.visibility = View.VISIBLE
@@ -134,18 +183,66 @@ class LawDetailActivity : AppCompatActivity() {
             // 下载拦截
             setDownloadListener(DownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
                 try {
-                    val request = DownloadManager.Request(Uri.parse(url))
-                    request.setMimeType(mimeType)
-                    request.setTitle("法规文件下载")
-                    request.setDescription("正在下载…")
-                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                    request.setDestinationInExternalPublicDir(
-                        Environment.DIRECTORY_DOWNLOADS,
-                        "法规宝典/${lawTitle}.${if (mimeType.contains("pdf")) "pdf" else "docx"}"
-                    )
-                    val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                    dm.enqueue(request)
-                    Toast.makeText(this@LawDetailActivity, "开始下载…", Toast.LENGTH_SHORT).show()
+                    // 检测是否是 blob URL
+                    if (url.startsWith("blob:")) {
+                        // blob URL 需要通过 JavaScript 转换成 base64 再下载
+                        // 从 contentDisposition 中提取文件名
+                        var fileName = "$lawTitle.docx"
+                        if (contentDisposition != null && contentDisposition.contains("filename")) {
+                            val match = Regex("filename\\*?=([^;]+)").find(contentDisposition)
+                            if (match != null) {
+                                var name = match.groupValues[1].trim().removeSurrounding("\"")
+                                // 处理 URL 编码的文件名
+                                if (name.startsWith("UTF-8''")) {
+                                    name = java.net.URLDecoder.decode(name.removePrefix("UTF-8''"), "UTF-8")
+                                }
+                                fileName = name
+                            }
+                        }
+
+                        // 通过 JavaScript 把 blob 转换成 base64
+                        val jsCode = """
+                            (function() {
+                                try {
+                                    fetch('$url')
+                                        .then(response => response.blob())
+                                        .then(blob => {
+                                            var reader = new FileReader();
+                                            reader.onloadend = function() {
+                                                var base64 = reader.result.split(',')[1];
+                                                BlobDownloader.onBlobData(base64, '$fileName', '$mimeType');
+                                            };
+                                            reader.readAsDataURL(blob);
+                                        })
+                                        .catch(err => {
+                                            console.error('Blob download error:', err);
+                                        });
+                                } catch(e) {
+                                    console.error('Blob download exception:', e);
+                                }
+                            })();
+                        """.trimIndent()
+
+                        webView.post {
+                            webView.evaluateJavascript(jsCode, null)
+                        }
+
+                        Toast.makeText(this@LawDetailActivity, "开始下载…", Toast.LENGTH_SHORT).show()
+                    } else {
+                        // 普通 HTTP/HTTPS URL，直接用 DownloadManager 下载
+                        val request = DownloadManager.Request(Uri.parse(url))
+                        request.setMimeType(mimeType)
+                        request.setTitle("法规文件下载")
+                        request.setDescription("正在下载…")
+                        request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                        request.setDestinationInExternalPublicDir(
+                            Environment.DIRECTORY_DOWNLOADS,
+                            "法规宝典/${lawTitle}.${if (mimeType.contains("pdf")) "pdf" else "docx"}"
+                        )
+                        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                        dm.enqueue(request)
+                        Toast.makeText(this@LawDetailActivity, "开始下载…", Toast.LENGTH_SHORT).show()
+                    }
                 } catch (e: Exception) {
                     Toast.makeText(this@LawDetailActivity, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
@@ -388,16 +485,52 @@ class LawDetailActivity : AppCompatActivity() {
                                         var hasDownloadChild = child.querySelector && child.querySelector('.download, [class*="download"]');
                                         
                                         if (isDownloadButton || hasDownloadChild) {
-                                            // 保留下载按键，设置为固定定位在右上角
+                                            // 保留下载按键相关元素，但需要进一步处理
                                             child.style.display = 'block';
-                                            child.style.position = 'fixed';
-                                            child.style.top = '60px';
-                                            child.style.right = '16px';
-                                            child.style.zIndex = '10000';
-                                            child.style.background = '#fff';
-                                            child.style.padding = '8px 16px';
-                                            child.style.borderRadius = '20px';
-                                            child.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                            
+                                            // 找到真正的下载按钮（class 为 download 的 span）
+                                            var downloadBtn = child.querySelector('.download') || (child.classList && child.classList.contains('download') ? child : null);
+                                            
+                                            if (downloadBtn) {
+                                                // 把下载按钮移动到 body 直接子元素，避免被父元素样式影响
+                                                document.body.appendChild(downloadBtn);
+                                                
+                                                // 设置下载按钮样式：小尺寸，右上角，与目录按钮对齐
+                                                downloadBtn.style.display = 'flex';
+                                                downloadBtn.style.alignItems = 'center';
+                                                downloadBtn.style.justifyContent = 'center';
+                                                downloadBtn.style.position = 'fixed';
+                                                downloadBtn.style.top = '56px';  // 与左上角目录按钮同一水平线
+                                                downloadBtn.style.right = '12px';
+                                                downloadBtn.style.zIndex = '10000';
+                                                downloadBtn.style.background = '#fff';
+                                                downloadBtn.style.width = '36px';
+                                                downloadBtn.style.height = '36px';
+                                                downloadBtn.style.borderRadius = '50%';
+                                                downloadBtn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+                                                downloadBtn.style.cursor = 'pointer';
+                                                downloadBtn.style.padding = '0';
+                                                downloadBtn.style.margin = '0';
+                                                
+                                                // 隐藏下载按钮中的文字，只保留图标
+                                                var textNodes = [];
+                                                for (var n = downloadBtn.childNodes.length - 1; n >= 0; n--) {
+                                                    if (downloadBtn.childNodes[n].nodeType === 3) {
+                                                        downloadBtn.childNodes[n].textContent = '';
+                                                    }
+                                                }
+                                                
+                                                // 设置图标大小
+                                                var icon = downloadBtn.querySelector('svg, i, img');
+                                                if (icon) {
+                                                    icon.style.width = '18px';
+                                                    icon.style.height = '18px';
+                                                    icon.style.display = 'block';
+                                                }
+                                                
+                                                // 隐藏原来的父元素（弹出框）
+                                                child.style.display = 'none';
+                                            }
                                         } else {
                                             child.style.display = 'none';
                                         }
@@ -554,6 +687,66 @@ class LawDetailActivity : AppCompatActivity() {
                             setTimeout(function() {
                                 window.dispatchEvent(new Event('resize'));
                             }, 500);
+                            
+                            // 定期清理下载弹出框：只保留下载按钮，隐藏二维码和WPS版本按钮
+                            setInterval(function() {
+                                try {
+                                    // 找到所有下载相关的弹出框
+                                    var popups = document.querySelectorAll('.el-tooltip__popper, [class*="tooltip"], [class*="popover"], [class*="dropdown"]');
+                                    for (var i = 0; i < popups.length; i++) {
+                                        var popup = popups[i];
+                                        // 检查是否包含下载按钮或二维码
+                                        if (popup.querySelector('.download, [class*="download"], img[src*="qrcode"], canvas')) {
+                                            // 隐藏弹出框
+                                            popup.style.display = 'none';
+                                        }
+                                    }
+                                    
+                                    // 确保下载按钮在正确位置
+                                    var downloadBtns = document.querySelectorAll('.download');
+                                    for (var j = 0; j < downloadBtns.length; j++) {
+                                        var btn = downloadBtns[j];
+                                        if (btn.style.position !== 'fixed') {
+                                            // 把下载按钮移动到 body 直接子元素
+                                            document.body.appendChild(btn);
+                                            
+                                            // 设置下载按钮样式
+                                            btn.style.display = 'flex';
+                                            btn.style.alignItems = 'center';
+                                            btn.style.justifyContent = 'center';
+                                            btn.style.position = 'fixed';
+                                            btn.style.top = '56px';
+                                            btn.style.right = '12px';
+                                            btn.style.zIndex = '10000';
+                                            btn.style.background = '#fff';
+                                            btn.style.width = '36px';
+                                            btn.style.height = '36px';
+                                            btn.style.borderRadius = '50%';
+                                            btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+                                            btn.style.cursor = 'pointer';
+                                            btn.style.padding = '0';
+                                            btn.style.margin = '0';
+                                            
+                                            // 隐藏文字，只保留图标
+                                            for (var n = btn.childNodes.length - 1; n >= 0; n--) {
+                                                if (btn.childNodes[n].nodeType === 3) {
+                                                    btn.childNodes[n].textContent = '';
+                                                }
+                                            }
+                                            
+                                            // 设置图标大小
+                                            var icon = btn.querySelector('svg, i, img');
+                                            if (icon) {
+                                                icon.style.width = '18px';
+                                                icon.style.height = '18px';
+                                                icon.style.display = 'block';
+                                            }
+                                        }
+                                    }
+                                } catch(e) {
+                                    // 忽略错误
+                                }
+                            }, 1000);
                             
                         } catch(e) {
                             console.log('readerOnlyMode error:', e);
