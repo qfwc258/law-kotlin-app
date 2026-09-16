@@ -124,7 +124,7 @@ class LawDetailViewModel(
         }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
-                pdfDownloadState = DownloadState.Downloading(0)
+                pdfDownloadState = DownloadState.Downloading(0L, 0)
             )
             val result = parser.getDownloadUrl(ossPdfPath)
             when (result) {
