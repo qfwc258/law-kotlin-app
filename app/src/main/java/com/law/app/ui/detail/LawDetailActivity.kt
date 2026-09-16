@@ -25,6 +25,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.law.app.R
 import com.law.app.util.Constants
 import java.io.File
 import java.io.FileOutputStream
