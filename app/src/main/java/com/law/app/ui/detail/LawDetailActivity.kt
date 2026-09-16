@@ -105,6 +105,10 @@ class LawDetailActivity : AppCompatActivity() {
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     progressBar.visibility = View.GONE
+                    // 页面加载完成后，延迟注入 JS，隐藏多余元素，只显示 OFD 阅读器
+                    view?.postDelayed({
+                        injectReaderOnlyMode(view)
+                    }, 1000)
                 }
 
                 override fun shouldOverrideUrlLoading(
@@ -212,6 +216,84 @@ class LawDetailActivity : AppCompatActivity() {
             Toast.makeText(this, "无效的法规ID", Toast.LENGTH_SHORT).show()
             finish()
         }
+    }
+
+    /**
+     * 注入 JS，隐藏网站多余元素，只显示 OFD 阅读器
+     *
+     * 思路：
+     * 1. 找到 OFD 阅读器（iframe 或 canvas）
+     * 2. 找到阅读器的最顶层容器
+     * 3. 隐藏 body 的所有直接子元素
+     * 4. 显示阅读器容器，设置为全屏固定定位
+     */
+    private fun injectReaderOnlyMode(view: WebView) {
+        val js = """
+            (function() {
+                try {
+                    // 定义全局函数，用于重试
+                    window.__tryReaderOnlyMode = function() {
+                        try {
+                            // 找到 OFD 阅读器（iframe 或 canvas）
+                            var reader = document.querySelector('iframe') || document.querySelector('canvas');
+                            if (!reader) {
+                                // 没有找到阅读器，500ms 后重试（最多重试10次）
+                                if (!window.__readerRetryCount) window.__readerRetryCount = 0;
+                                if (window.__readerRetryCount < 10) {
+                                    window.__readerRetryCount++;
+                                    setTimeout(window.__tryReaderOnlyMode, 500);
+                                }
+                                return;
+                            }
+                            
+                            // 已经处理过，不重复处理
+                            if (window.__readerOnlyModeApplied) return;
+                            window.__readerOnlyModeApplied = true;
+                            
+                            // 找到阅读器的最顶层容器（在 body 下的直接子元素）
+                            var container = reader;
+                            while (container.parentElement && container.parentElement !== document.body) {
+                                container = container.parentElement;
+                            }
+                            
+                            // 隐藏 body 的所有直接子元素
+                            var children = document.body.children;
+                            for (var i = 0; i < children.length; i++) {
+                                children[i].style.display = 'none';
+                            }
+                            
+                            // 显示阅读器容器，设置为全屏固定定位
+                            container.style.display = 'block';
+                            container.style.position = 'fixed';
+                            container.style.top = '0';
+                            container.style.left = '0';
+                            container.style.width = '100%';
+                            container.style.height = '100%';
+                            container.style.zIndex = '9999';
+                            container.style.background = '#fff';
+                            
+                            // 把阅读器容器添加到 body（确保它在最顶层）
+                            document.body.appendChild(container);
+                            
+                            // 隐藏 html 和 body 的滚动条，让阅读器全屏显示
+                            document.documentElement.style.overflow = 'hidden';
+                            document.body.style.overflow = 'hidden';
+                            
+                        } catch(e) {
+                            console.log('readerOnlyMode error:', e);
+                        }
+                    };
+                    
+                    // 首次调用
+                    window.__tryReaderOnlyMode();
+                    
+                } catch(e) {
+                    console.log('injectReaderOnlyMode error:', e);
+                }
+            })();
+        """.trimIndent()
+
+        view.evaluateJavascript(js, null)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
