@@ -10,6 +10,11 @@ on:
 env:
   ANDROID_GRADLE_PLUGIN_VERSION: 8.2.2
   GRADLE_VERSION: 8.5
+  # 签名配置（生产环境建议在 GitHub Secrets 中配置后覆盖）
+  SIGNING_STORE_FILE: release/law-app-release.keystore
+  SIGNING_STORE_PASSWORD: LawApp2026
+  SIGNING_KEY_ALIAS: law-app
+  SIGNING_KEY_PASSWORD: LawApp2026
 
 jobs:
   build-debug:
@@ -67,7 +72,7 @@ jobs:
           retention-days: 7
 
   build-release:
-    name: Build Release APK
+    name: Build Signed Release APK
     runs-on: ubuntu-latest
 
     steps:
@@ -94,13 +99,32 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Release APK
+      - name: Generate signing config
+        run: |
+          cat > local.properties << 'SIGNING_EOF'
+          storeFile=release/law-app-release.keystore
+          storePassword=LawApp2026
+          keyAlias=law-app
+          keyPassword=LawApp2026
+          SIGNING_EOF
+          echo "=== local.properties generated ==="
+          cat local.properties
+
+      - name: Build Signed Release APK
         run: ./gradlew assembleRelease --stacktrace
 
-      - name: Upload Release APK
+      - name: Verify APK signature
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "APK path: $APK_PATH"
+          ls -la "$APK_PATH"
+          echo "=== APK info ==="
+          $ANDROID_HOME/build-tools/34.0.0/aapt dump badging "$APK_PATH" 2>/dev/null | head -5 || echo "aapt not available"
+
+      - name: Upload Signed Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: law-app-release-apk
+          name: law-app-release-signed-apk
           path: app/build/outputs/apk/release/*.apk
           retention-days: 90
 
