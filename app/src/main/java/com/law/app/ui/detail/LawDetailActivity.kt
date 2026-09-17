@@ -24,7 +24,6 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.law.app.R
 import com.law.app.util.Constants
@@ -974,104 +973,11 @@ class LawDetailActivity : AppCompatActivity() {
                 onBackPressed()
                 true
             }
-            R.id.action_toggle_mode -> {
-                extractTextFromOfd()
-                true
-            }
             R.id.action_download -> {
                 triggerDownload()
                 true
             }
             else -> super.onOptionsItemSelected(item)
-        }
-    }
-
-    /**
-     * 从 OFD 阅读器中提取文本，转换为 Markdown 后跳转到文本模式页面
-     *
-     * 尝试多种方式提取文本：
-     * 1. 直接访问 iframe.contentDocument（跨域可能失败）
-     * 2. 从 iframe.src 提取 OFD 文件 URL（供后续解析）
-     */
-    private fun extractTextFromOfd() {
-        Toast.makeText(this, "正在提取文本…", Toast.LENGTH_SHORT).show()
-
-        val jsCode = """
-            (function() {
-                try {
-                    var iframe = document.getElementById('previewIframe');
-                    if (!iframe) {
-                        return JSON.stringify({success: false, error: 'OFD阅读器未加载'});
-                    }
-                    
-                    // 方式1：尝试直接访问 iframe 内容（跨域会失败）
-                    try {
-                        var doc = iframe.contentDocument || iframe.contentWindow.document;
-                        if (doc && doc.body) {
-                            var text = doc.body.innerText || doc.body.textContent;
-                            if (text && text.length > 10) {
-                                return JSON.stringify({success: true, text: text, source: 'iframe'});
-                            }
-                        }
-                    } catch(e) {
-                        // 跨域访问失败，继续尝试其他方式
-                    }
-                    
-                    // 方式2：从 iframe.src 提取 OFD 文件信息
-                    var src = iframe.src || '';
-                    if (src) {
-                        // 提取 file 参数
-                        var fileMatch = src.match(/[?&]file=([^&]+)/);
-                        var ofdUrl = fileMatch ? decodeURIComponent(fileMatch[1]) : '';
-                        return JSON.stringify({
-                            success: false, 
-                            error: '跨域限制无法直接提取文本',
-                            ofdUrl: ofdUrl,
-                            iframeSrc: src
-                        });
-                    }
-                    
-                    return JSON.stringify({success: false, error: '无法获取OFD阅读器信息'});
-                } catch(e) {
-                    return JSON.stringify({success: false, error: e.message});
-                }
-            })();
-        """.trimIndent()
-
-        webView.evaluateJavascript(jsCode) { result ->
-            try {
-                val cleaned = result?.removeSurrounding("\"")?.replace("\\\"", "\"") ?: ""
-                val json = org.json.JSONObject(cleaned)
-                val success = json.optBoolean("success", false)
-
-                if (success) {
-                    val text = json.optString("text", "")
-                    if (text.isNotBlank()) {
-                        // 提取成功，跳转到 Markdown 渲染页
-                        LawMarkdownActivity.start(this, lawTitle, text)
-                    } else {
-                        Toast.makeText(this, "提取的文本为空", Toast.LENGTH_SHORT).show()
-                    }
-                } else {
-                    val error = json.optString("error", "未知错误")
-                    val ofdUrl = json.optString("ofdUrl", "")
-                    
-                    // 跨域限制，提示用户
-                    AlertDialog.Builder(this)
-                        .setTitle("文本提取")
-                        .setMessage(
-                            "由于 OFD 阅读器为跨域内容，无法直接通过 JS 提取文本。\n\n" +
-                            "建议：\n" +
-                            "1. 使用预览模式阅读（当前模式）\n" +
-                            "2. 下载 Word 文件后用 WPS 打开\n\n" +
-                            "OFD文件地址：$ofdUrl"
-                        )
-                        .setPositiveButton("知道了", null)
-                        .show()
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this, "文本提取失败: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
         }
     }
 
