@@ -22,6 +22,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.law.app.ui.category.CategoryListScreen
 import com.law.app.ui.detail.LawDetailActivity
 import com.law.app.ui.home.HomeScreen
 import com.law.app.ui.search.SearchScreen
@@ -87,8 +88,24 @@ fun AppNavigation() {
                     onLawClick = { lawId, title -> LawDetailActivity.start(context, lawId, title) },
                     onSearchClick = { navController.navigate(BottomNavItem.Search.route) },
                     onCategoryClick = { category ->
-                        navController.navigate("search?keyword=${category.name}")
+                        navController.navigate("category/${category.name}")
                     }
+                )
+            }
+            // 大类列表页
+            composable(
+                route = "category/{categoryName}",
+                arguments = listOf(
+                    navArgument("categoryName") {
+                        type = NavType.StringType
+                    }
+                )
+            ) { backStackEntry ->
+                val categoryName = backStackEntry.arguments?.getString("categoryName") ?: ""
+                CategoryListScreen(
+                    categoryName = categoryName,
+                    onBackClick = { navController.popBackStack() },
+                    onLawClick = { lawId, title -> LawDetailActivity.start(context, lawId, title) }
                 )
             }
             composable(
